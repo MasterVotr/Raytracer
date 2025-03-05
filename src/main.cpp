@@ -10,12 +10,12 @@
 
 // Image
 const int img_width = 800;
-const int img_height = 450;
+const int img_height = 800;
 const auto aspect_ratio = 16.0 / 9.0;
 
 // Viewport
-const auto w = 680.0;
-const auto h = 360.0;
+const auto w = 100;
+const auto h = 100;
 
 // Camera
 raytracer::point3 o(278.0, 273.0, -1000.0);
@@ -23,9 +23,76 @@ raytracer::vec3 u(0.0, 1.0, 0.0);
 raytracer::vec3 d(0.0, 0.0, 1.0);
 float fov = 0.6;
 
-raytracer::color ray_color(const std::vector<raytracer::Triangle>& scene, const raytracer::ray& r) {
+double CollisionRayTriangle(const raytracer::Triangle& triangle, raytracer::ray& ray) {
+    const raytracer::vec3& a = triangle.vertices[0];
+    const raytracer::vec3& b = triangle.vertices[1];
+    const raytracer::vec3& c = triangle.vertices[2];
+    const raytracer::vec3& s = ray.direction();
+    const raytracer::point3 o = ray.origin();
+
+    raytracer::vec3 e1 = b - a;
+    raytracer::vec3 e2 = c - a;
+    raytracer::vec3 p = raytracer::cross(s, e2);
+    double d = raytracer::dot(e1, p);
+
+    if (d < raytracer::epsilon) {
+        return -1.0;
+    }
+
+    double d_inv = 1 / d;
+    raytracer::vec3 q = o - a;
+    double u = d_inv * raytracer::dot(q, p);
+    if (u < 0.0 && u > 1.0) {
+        return -1.0;
+    }
+
+    raytracer::vec3 r = raytracer::cross(q, e1);
+    double v = d_inv * raytracer::dot(r, s);
+    if (v < 0.0 && u + v > 1.0) {
+        return -1.0;
+    }
+
+    double t = d_inv * raytracer::dot(e2, r);
+    return t;
+}
+
+double global_t_min = raytracer::infinity;
+double global_t_max = -1.0;
+
+raytracer::color ray_color(const std::vector<raytracer::Triangle>& scene, raytracer::ray& ray) {
     // Color computation
-    return raytracer::color(0, 0, 0);
+    auto t_pixel = CollisionRayTriangle(scene[0], ray);
+    auto t_max = 60000.0;
+    for (const auto& triangle : scene) {
+        auto t = CollisionRayTriangle(triangle, ray);
+        // miss
+        if (t == -1.0) {
+            continue;
+        }
+        // hit
+        if (t < t_pixel) {
+            t_pixel = t;
+        }
+        // max t
+        if (t > global_t_max) {
+            global_t_max = t;
+        }
+        // min t
+        if (t < global_t_min) {
+            global_t_min = t;
+        }
+    }
+
+    // Compute color from distance
+    auto greyscale = 1.0 - (std::min(t_pixel, 1.5 * t_max) / (1.5 * t_max));
+    // auto greyscale = raytracer::clamp(greyscale_unclamped, 0.0, 1.0);
+    raytracer::color final_color(greyscale, greyscale, greyscale);
+    std::clog << "ray from " << ray.origin() << " dir " << ray.direction() << " t_max: " << t_max << " t_count: " << scene.size()
+              << " t_pixel: " << t_pixel << " greyscale: " << greyscale << std::endl;
+
+    // std::clog << final_color << std::endl;
+
+    return final_color;
 }
 
 static void SaveImageToPmm(int img_width, int img_height, std::vector<raytracer::color>& img) {
@@ -40,13 +107,20 @@ static void SaveImageToPmm(int img_width, int img_height, std::vector<raytracer:
 }
 
 void RenderScene(const std::vector<raytracer::Triangle>& scene) {
-    auto t = 1.0;
-    auto b = d * u;
-    auto gw = 2 * t * tan(fov / 2);
-    auto gh = gw * h / w;
-    auto qw = b * gw / (w - 1);
-    auto qh = u * gh / (h - 1);
-    auto p00_loc = d * t - b * (gw / 2) + u * (gh / 2);
+    double t = 1.0;
+    raytracer::vec3 b = raytracer::cross(d, u);
+    double gw = 2 * t * std::tan(fov / 2);
+    double gh = gw * h / w;
+    raytracer::vec3 qw = b * gw / (w - 1);
+    raytracer::vec3 qh = u * gh / (h - 1);
+    raytracer::vec3 p00_loc = d * t - b * (gw / 2) + u * (gh / 2);
+    // std::clog << "t: " << t << "\n"
+    //           << "b: " << b << "\n"
+    //           << "gw: " << gw << "\n"
+    //           << "gh: " << gh << "\n"
+    //           << "qw: " << qw << "\n"
+    //           << "qh: " << qh << "\n"
+    //           << "p00_loc: " << p00_loc << std::endl;
 
     std::vector<raytracer::color> img;
 
@@ -56,12 +130,16 @@ void RenderScene(const std::vector<raytracer::Triangle>& scene) {
             auto rxy = pxy / pxy.length();
             raytracer::ray r(pxy, rxy);
 
+            // std::clog << "Pos of (" << x << ", " << y << ") = (" << pxy << ") and dir: (" << rxy << ")\n";
+
             raytracer::color pixel_color = ray_color(scene, r);
             img.emplace_back(pixel_color);
         }
     }
 
     SaveImageToPmm(w, h, img);
+
+    std::clog << "global_t_min: " << global_t_min << " global_t_max: " << global_t_max << std::endl;
 }
 
 /*struct Sphere {

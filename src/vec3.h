@@ -1,12 +1,13 @@
 #pragma once
 
+#include "util.h"
+
 #include <ostream>
 
 namespace raytracer {
 class vec3 {
    public:
     double x, y, z;
-    const double epsilon = 1e-9;  // Small value
 
    public:
     vec3() : x(0), y(0), z(0) {}
