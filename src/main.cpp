@@ -1,19 +1,68 @@
 #define TINYOBJLOADER_IMPLEMENTATION
-#include "../include/tiny_obj_loader.h"
 #include "color.h"
+#include "obj_loader.h"
+#include "ray.h"
 #include "util.h"
 #include "vec3.h"
 
-#include <cassert>
 #include <fstream>
 #include <iostream>
 
 // Image
-const auto aspect_ration = 16.0 / 9.0;
 const int img_width = 800;
-const int img_height = 800;
+const int img_height = 450;
+const auto aspect_ratio = 16.0 / 9.0;
 
 // Viewport
+const auto w = 680.0;
+const auto h = 360.0;
+
+// Camera
+raytracer::point3 o(278.0, 273.0, -1000.0);
+raytracer::vec3 u(0.0, 1.0, 0.0);
+raytracer::vec3 d(0.0, 0.0, 1.0);
+float fov = 0.6;
+
+raytracer::color ray_color(const std::vector<raytracer::Triangle>& scene, const raytracer::ray& r) {
+    // Color computation
+    return raytracer::color(0, 0, 0);
+}
+
+static void SaveImageToPmm(int img_width, int img_height, std::vector<raytracer::color>& img) {
+    std::clog << "Saving image to output.pmm" << std::endl;
+    std::ofstream output("output.ppm");
+    output << "P3\n" << img_width << ' ' << img_height << "\n255\n";
+    for (const auto& pixel_color : img) {
+        raytracer::write_color(output, pixel_color);
+    }
+    std::clog << "\rImage saving done       \n";
+    output.close();
+}
+
+void RenderScene(const std::vector<raytracer::Triangle>& scene) {
+    auto t = 1.0;
+    auto b = d * u;
+    auto gw = 2 * t * tan(fov / 2);
+    auto gh = gw * h / w;
+    auto qw = b * gw / (w - 1);
+    auto qh = u * gh / (h - 1);
+    auto p00_loc = d * t - b * (gw / 2) + u * (gh / 2);
+
+    std::vector<raytracer::color> img;
+
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            auto pxy = p00_loc + (qw * x) - (qh * y);
+            auto rxy = pxy / pxy.length();
+            raytracer::ray r(pxy, rxy);
+
+            raytracer::color pixel_color = ray_color(scene, r);
+            img.emplace_back(pixel_color);
+        }
+    }
+
+    SaveImageToPmm(w, h, img);
+}
 
 /*struct Sphere {
     Sphere(float rad_, vec3 p_):
@@ -30,157 +79,29 @@ const int img_height = 800;
     vec3 p;     // position
 }; */
 
-static void PrintInfo(const tinyobj::attrib_t& attrib,
-                      const std::vector<tinyobj::shape_t>& shapes,
-                      const std::vector<tinyobj::material_t>& materials) {
-    std::cout << "# of vertices  : " << (attrib.vertices.size() / 3) << std::endl;
-    std::cout << "# of normals   : " << (attrib.normals.size() / 3) << std::endl;
-    std::cout << "# of texcoords : " << (attrib.texcoords.size() / 2) << std::endl;
-
-    std::cout << "# of shapes    : " << shapes.size() << std::endl;
-    std::cout << "# of materials : " << materials.size() << std::endl;
-
-    for (size_t v = 0; v < attrib.vertices.size() / 3; v++) {
-        printf("  v[%ld] = (%f, %f, %f)\n", static_cast<long>(v), static_cast<const double>(attrib.vertices[3 * v + 0]),
-               static_cast<const double>(attrib.vertices[3 * v + 1]),
-               static_cast<const double>(attrib.vertices[3 * v + 2]));
-    }
-
-    for (size_t v = 0; v < attrib.normals.size() / 3; v++) {
-        printf("  n[%ld] = (%f, %f, %f)\n", static_cast<long>(v), static_cast<const double>(attrib.normals[3 * v + 0]),
-               static_cast<const double>(attrib.normals[3 * v + 1]),
-               static_cast<const double>(attrib.normals[3 * v + 2]));
-    }
-
-    for (size_t v = 0; v < attrib.texcoords.size() / 2; v++) {
-        printf("  uv[%ld] = (%f, %f)\n", static_cast<long>(v), static_cast<const double>(attrib.texcoords[2 * v + 0]),
-               static_cast<const double>(attrib.texcoords[2 * v + 1]));
-    }
-
-    // For each shape
-    for (size_t i = 0; i < shapes.size(); i++) {
-        printf("shape[%ld].name = %s\n", static_cast<long>(i), shapes[i].name.c_str());
-        printf("Size of shape[%ld].mesh.indices: %lu\n", static_cast<long>(i),
-               static_cast<unsigned long>(shapes[i].mesh.indices.size()));
-        printf("Size of shape[%ld].lines.indices: %lu\n", static_cast<long>(i),
-               static_cast<unsigned long>(shapes[i].lines.indices.size()));
-        printf("Size of shape[%ld].points.indices: %lu\n", static_cast<long>(i),
-               static_cast<unsigned long>(shapes[i].points.indices.size()));
-
-        size_t index_offset = 0;
-
-        assert(shapes[i].mesh.num_face_vertices.size() == shapes[i].mesh.material_ids.size());
-
-        assert(shapes[i].mesh.num_face_vertices.size() == shapes[i].mesh.smoothing_group_ids.size());
-
-        printf("shape[%ld].num_faces: %lu\n", static_cast<long>(i),
-               static_cast<unsigned long>(shapes[i].mesh.num_face_vertices.size()));
-
-        // For each face
-        for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
-            size_t fnum = shapes[i].mesh.num_face_vertices[f];
-
-            printf("  face[%ld].fnum = %ld\n", static_cast<long>(f), static_cast<unsigned long>(fnum));
-
-            // For each vertex in the face
-            for (size_t v = 0; v < fnum; v++) {
-                tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
-                printf("    face[%ld].v[%ld].idx = %d/%d/%d\n", static_cast<long>(f), static_cast<long>(v),
-                       idx.vertex_index, idx.normal_index, idx.texcoord_index);
-            }
-
-            printf("  face[%ld].material_id = %d\n", static_cast<long>(f), shapes[i].mesh.material_ids[f]);
-            printf("  face[%ld].smoothing_group_id = %d\n", static_cast<long>(f),
-                   shapes[i].mesh.smoothing_group_ids[f]);
-
-            index_offset += fnum;
-        }
-
-        printf("shape[%ld].num_tags: %lu\n", static_cast<long>(i),
-               static_cast<unsigned long>(shapes[i].mesh.tags.size()));
-        for (size_t t = 0; t < shapes[i].mesh.tags.size(); t++) {
-            printf("  tag[%ld] = %s ", static_cast<long>(t), shapes[i].mesh.tags[t].name.c_str());
-            printf(" ints: [");
-            for (size_t j = 0; j < shapes[i].mesh.tags[t].intValues.size(); ++j) {
-                printf("%ld", static_cast<long>(shapes[i].mesh.tags[t].intValues[j]));
-                if (j < (shapes[i].mesh.tags[t].intValues.size() - 1)) {
-                    printf(", ");
-                }
-            }
-            printf("]");
-
-            printf(" floats: [");
-            for (size_t j = 0; j < shapes[i].mesh.tags[t].floatValues.size(); ++j) {
-                printf("%f", static_cast<const double>(shapes[i].mesh.tags[t].floatValues[j]));
-                if (j < (shapes[i].mesh.tags[t].floatValues.size() - 1)) {
-                    printf(", ");
-                }
-            }
-            printf("]");
-
-            printf(" strings: [");
-            for (size_t j = 0; j < shapes[i].mesh.tags[t].stringValues.size(); ++j) {
-                printf("%s", shapes[i].mesh.tags[t].stringValues[j].c_str());
-                if (j < (shapes[i].mesh.tags[t].stringValues.size() - 1)) {
-                    printf(", ");
-                }
-            }
-            printf("]");
-            printf("\n");
-        }
-    }
-}
-
-static bool TestLoadObj(const char* filename, const char* basepath = NULL, bool triangulate = true) {
-    std::cout << "Loading " << filename << std::endl;
-
-    tinyobj::attrib_t attrib;
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
-
-    std::string warn;
-    std::string err;
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename, basepath, triangulate);
-
-    if (!warn.empty()) {
-        std::cout << "WARN: " << warn << std::endl;
-    }
-
-    if (!err.empty()) {
-        std::cerr << "ERR: " << err << std::endl;
-    }
-
-    if (!ret) {
-        printf("Failed to load/parse .obj.\n");
-        return false;
-    }
-
-    PrintInfo(attrib, shapes, materials);
-
-    return true;
-}
-
 int main(int argc, char const* argv[]) {
-    // // Loader testing
-    // const char* basepath = "scenes/";
-    // bool succ = TestLoadObj("scenes/CornellBox-Original.obj", basepath);
-    // if (!succ) {
-    //     printf("Laoding failed");
-    // }
+    const char* basepath = "scenes/";
+    auto res = raytracer::LoadScene("scenes/CornellBox-Original.obj", basepath);
+
+    RenderScene(res);
+}
+/*
+    SaveImageToPmm(img_width, img_height, img);
 
     // Image rendering
     float* image = new float[img_width * img_height * 3];
 
     // Creating a gradient texture
+    std::clog << "Generating testing output.pmm" << std::endl;
     std::ofstream output("output.ppm");
     output << "P3\n" << img_width << ' ' << img_height << "\n255\n";
     for (int j = 0; j < img_height; ++j) {
         std::clog << "\rScanlines remaining: " << (img_height - j) << ' ' << std::flush;
         for (int i = 0; i < img_width; ++i) {
-            auto pixel_color = color(double(i) / (img_width - 1), double(j) / (img_height - 1), 0.0);
-            write_color(output, pixel_color);
+            auto pixel_color = raytracer::color(double(i) / (img_width - 1), double(j) / (img_height - 1), 0.0);
+            raytracer::write_color(output, pixel_color);
         }
     }
-    std::clog << "\rDone.                    \n";
+    std::clog << "\rImage saving done       \n";
     output.close();
-}
+*/
