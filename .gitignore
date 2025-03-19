@@ -1,5 +1,6 @@
 raytracer
-raytracer.dSYM/
+raytracer.dSYM
+raytracer.dSYM/*
 output*.txt
 output*.ppm
 
