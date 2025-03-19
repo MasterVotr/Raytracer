@@ -1,4 +1,3 @@
-#define TINYOBJLOADER_IMPLEMENTATION
 #include "color.h"
 #include "obj_loader.h"
 #include "ray.h"
@@ -10,16 +9,18 @@
 
 const bool cull_backfaces = true;
 
+enum RENDER_TYPE { GREYSCALE, DIFFUSION, PHONG };
+const RENDER_TYPE render_type = DIFFUSION;
+
 // Viewport
-const auto w = 1000;
-const auto h = 1000;
-const auto aspect_ratio = 16.0 / 9.0;
+const auto w = 800;
+const auto h = 800;
 
 // Camera
 raytracer::point3 o(278.0, 273.0, -1000.0);
 raytracer::vec3 u(0.0, 1.0, 0.0);
 raytracer::vec3 d(0.0, 0.0, 1.0);
-float fov = 0.6;
+double fov = 0.6;
 
 double CollisionRayTriangle(const raytracer::Triangle& triangle, raytracer::ray& ray) {
     // Extract triangle vertices and ray properties
@@ -76,47 +77,45 @@ double CollisionRayTriangle(const raytracer::Triangle& triangle, raytracer::ray&
     return t;
 }
 
-double global_t_min = raytracer::infinity;
-double global_t_max = -raytracer::infinity;
-
-raytracer::color ray_color(const std::vector<raytracer::Triangle>& scene, raytracer::ray& ray) {
+raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
+    const auto& triangles = scene.GetTriangles();
     // Color computation
-    auto t_pixel = CollisionRayTriangle(scene[0], ray);
-    auto t_max = 60000.0;
+    auto t_pixel = raytracer::infinity;
+    auto t_max = 2000.0;
     auto triangle_hit = -1;
-    for (size_t i = 0; i < scene.size(); i++) {
-        auto t = CollisionRayTriangle(scene[i], ray);
+    for (size_t i = 0; i < scene.GetTriangles().size(); i++) {
+        auto t = CollisionRayTriangle(scene.GetTriangles()[i], ray);
         // miss
         if (t == raytracer::infinity) {
             continue;
-        } else {  // hit
         }
-        // nearest hit
+        // closer hit
         if (t < t_pixel) {
             t_pixel = t;
             triangle_hit = i;
         }
-        // max t
-        if (t > global_t_max) {
-            global_t_max = t;
-            std::clog << "New global max: " << global_t_max << " at ray " << ray.origin() << " at triangle " << scene[i] << std::endl;
-        }
-        // min t
-        if (t < global_t_min) {
-            global_t_min = t;
-        }
     }
-    std::clog << "Hit at triagle " << triangle_hit << ": [" << scene[triangle_hit] << "]\tat t: " << t_pixel << std::endl;
-    return {triangle_hit / 34.0, triangle_hit / 34.0, triangle_hit / 34.0};
 
     // Compute color from distance
-    auto greyscale = 1 - (std::min(t_pixel, 1.5 * t_max) / (1.5 * t_max));
-    // auto greyscale = raytracer::clamp(greyscale_unclamped, 0.0, 1.0);
-    raytracer::color final_color(greyscale, greyscale, greyscale);
-    // std::clog << "ray from: " << ray.origin() << "    \tdir: " << ray.direction() << "   \tt_max: " << t_max << " \tt_count: " << scene.size()
-    //   << " \tt_pixel: " << t_pixel << " \tgreyscale: " << greyscale << std::endl;
+    raytracer::color final_color(0.0, 0.0, 0.0);
 
-    // std::clog << final_color << std::endl;
+    switch (render_type) {
+        case GREYSCALE: {
+            auto greyscale = 1 - (std::min(t_pixel, 1.5 * t_max) / (1.5 * t_max));
+            final_color = raytracer::vec3(greyscale, greyscale, greyscale);
+            break;
+        }
+        case DIFFUSION: {
+            if (t_pixel != raytracer::infinity) {
+                auto material_id = scene.GetTriangles()[triangle_hit].material_id;
+                final_color = scene.GetMaterials()[material_id].diffuse;
+            }
+            break;
+        }
+        default:
+            std::cerr << "Invalid render type" << std::endl;
+            exit(1);
+    }
 
     return final_color;
 }
@@ -128,53 +127,43 @@ static void SaveImageToPmm(int img_width, int img_height, std::vector<raytracer:
     for (const auto& pixel_color : img) {
         raytracer::write_color(output, pixel_color);
     }
-    std::clog << "\rImage saving done       \n";
+    std::clog << "\rImage saved to output.pmm        \n";
     output.close();
 }
 
-void RenderScene(const std::vector<raytracer::Triangle>& scene) {
+void RenderScene(const raytracer::Scene& scene) {
     double t = 1.0;
     raytracer::vec3 b = raytracer::cross(d, u);
-    double gw = 2 * t * std::tan(fov / 2);
+    double gw = 2 * t * std::tan(fov / 2.0);
     double gh = gw * (h / w);
     raytracer::vec3 qw = b * (gw / (w - 1));
     raytracer::vec3 qh = u * (gh / (h - 1));
-    raytracer::vec3 p00_loc = d * t - (b * (gw / 2)) + (u * (gh / 2));
-    raytracer::vec3 r00 = p00_loc / p00_loc.length();
-    std::clog << "t: " << t << "\n"
-              << "b: " << b << "\n"
-              << "gw: " << gw << "\n"
-              << "gh: " << gh << "\n"
-              << "qw: " << qw << "\n"
-              << "qh: " << qh << "\n"
-              << "p00_loc: " << p00_loc << "\n"
-              << "r00: " << r00 << std::endl;
+    raytracer::vec3 p00 = d * t - (b * (gw / 2)) + (u * (gh / 2));
+    raytracer::vec3 r00 = p00 / p00.length();
 
     std::vector<raytracer::color> img;
 
     for (int y = 0; y < h; y++) {
+        std::clog << "\rRendering scene... " << (y * 1.0 / h) * 100.0 << "%" << std::flush;
         for (int x = 0; x < w; x++) {
-            auto pxy = p00_loc + (qw * x) - (qh * y);
+            auto pxy = p00 + (qw * x) - (qh * y);
             auto rxy = pxy / pxy.length();
-            raytracer::ray r(pxy, rxy);
-
-            // std::clog << "Pos of (" << x << ", " << y << ") = (" << pxy << ") and dir: (" << rxy << ")\n";
+            raytracer::ray r(o, rxy);
 
             raytracer::color pixel_color = ray_color(scene, r);
             img.emplace_back(pixel_color);
         }
     }
+    std::clog << "\rRendering done               " << std::endl;
 
     SaveImageToPmm(w, h, img);
-
-    std::clog << "global_t_min: " << global_t_min << " global_t_max: " << global_t_max << std::endl;
 }
 
 int main(int argc, char const* argv[]) {
     const char* basepath = "scenes/";
-    auto res = raytracer::LoadScene("scenes/CornellBox-Original.obj", basepath);
+    auto scene = raytracer::LoadScene("scenes/CornellBox-Original.obj", basepath);
 
-    RenderScene(res);
+    RenderScene(scene);
 }
 
 /*struct Sphere {
@@ -191,25 +180,3 @@ int main(int argc, char const* argv[]) {
     float rad;  // radius
     vec3 p;     // position
 }; */
-
-
-/*
-    SaveImageToPmm(img_width, img_height, img);
-
-    // Image rendering
-    float* image = new float[img_width * img_height * 3];
-
-    // Creating a gradient texture
-    std::clog << "Generating testing output.pmm" << std::endl;
-    std::ofstream output("output.ppm");
-    output << "P3\n" << img_width << ' ' << img_height << "\n255\n";
-    for (int j = 0; j < img_height; ++j) {
-        std::clog << "\rScanlines remaining: " << (img_height - j) << ' ' << std::flush;
-        for (int i = 0; i < img_width; ++i) {
-            auto pixel_color = raytracer::color(double(i) / (img_width - 1), double(j) / (img_height - 1), 0.0);
-            raytracer::write_color(output, pixel_color);
-        }
-    }
-    std::clog << "\rImage saving done       \n";
-    output.close();
-*/

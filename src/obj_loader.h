@@ -1,7 +1,8 @@
 #pragma once
 
+#define TINYOBJLOADER_IMPLEMENTATION
 #include "../include/tiny_obj_loader.h"
-#include "triangle.h"
+#include "scene.h"
 
 #include <cassert>
 #include <exception>
@@ -102,36 +103,7 @@ static void PrintInfo(const tinyobj::attrib_t& attrib,
     }
 }
 
-static bool TestLoadObj(const char* filename, const char* basepath = NULL, bool triangulate = true) {
-    std::cout << "Loading " << filename << std::endl;
-
-    tinyobj::attrib_t attrib;
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
-
-    std::string warn;
-    std::string err;
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename, basepath, triangulate);
-
-    if (!warn.empty()) {
-        std::cout << "WARN: " << warn << std::endl;
-    }
-
-    if (!err.empty()) {
-        std::cerr << "ERR: " << err << std::endl;
-    }
-
-    if (!ret) {
-        printf("Failed to load/parse .obj.\n");
-        return false;
-    }
-
-    PrintInfo(attrib, shapes, materials);
-
-    return true;
-}
-
-static std::vector<Triangle> LoadScene(const char* filename, const char* basepath = NULL, bool triangulate = true) {
+static Scene LoadScene(const char* filename, const char* basepath = NULL, bool triangulate = true) {
     std::clog << "Loading " << filename << std::flush;
 
     tinyobj::attrib_t attrib;
@@ -157,8 +129,9 @@ static std::vector<Triangle> LoadScene(const char* filename, const char* basepat
 
     // PrintInfo(attrib, shapes, materials);
 
-    std::clog << "Transforming to vec3..." << std::flush;
-    std::vector<Triangle> scene;
+    Scene scene;
+
+    std::clog << "Translating triangles to structures..." << std::flush;
     for (size_t i = 0; i < shapes.size(); i++) {
         size_t index_offset = 0;
         for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
@@ -171,11 +144,27 @@ static std::vector<Triangle> LoadScene(const char* filename, const char* basepat
                     vec3(static_cast<const double>(attrib.vertices[3 * vidx + 0]), static_cast<const double>(attrib.vertices[3 * vidx + 1]),
                          static_cast<const double>(attrib.vertices[3 * vidx + 2]));
             }
-            scene.emplace_back(triangle);
+            triangle.material_id = shapes[i].mesh.material_ids[f];
+            scene.AddTriangle(triangle);
             index_offset += fnum;
         }
     }
-    std::clog << "\rTransforming done.     " << std::endl;
+
+    std::clog << "\rTranslating materials to structures..." << std::flush;
+    for (size_t i = 0; i < materials.size(); i++) {
+        Material material;
+        material.ambient = vec3(materials[i].ambient[0], materials[i].ambient[1], materials[i].ambient[2]);
+        material.diffuse = vec3(materials[i].diffuse[0], materials[i].diffuse[1], materials[i].diffuse[2]);
+        material.specular = vec3(materials[i].specular[0], materials[i].specular[1], materials[i].specular[2]);
+        material.transmittance = vec3(materials[i].transmittance[0], materials[i].transmittance[1], materials[i].transmittance[2]);
+        material.emission = vec3(materials[i].emission[0], materials[i].emission[1], materials[i].emission[2]);
+        material.shininess = materials[i].shininess;
+        material.ior = materials[i].ior;
+        material.dissolve = materials[i].dissolve;
+        scene.AddMaterial(material);
+    }
+
+    std::clog << "\rTranslating everything to structures done." << std::endl;
     return scene;
 }
 
