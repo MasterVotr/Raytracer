@@ -12,4 +12,5 @@ run: raytracer
 
 clean:
 	@rm -rf raytracer
+	@rm -rf raytracer.dSYM
 	@rm -rf output.ppm
