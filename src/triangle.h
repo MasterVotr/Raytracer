@@ -8,6 +8,7 @@ namespace raytracer {
 
 struct Triangle {
     std::array<vec3, 3> vertices;
+    size_t material_id;
 };
 
 inline std::ostream& operator<<(std::ostream& os, Triangle triangle) {

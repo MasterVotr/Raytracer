@@ -1,5 +1,6 @@
 #pragma once
 
+#include "material.h"
 #include "triangle.h"
 
 #include <vector>
@@ -10,10 +11,13 @@ class Scene {
    public:
     Scene() {}
     void AddTriangle(const Triangle& t) { triangles_.emplace_back(t); }
-    const std::vector<Triangle>& GetTriangles() { return triangles_; }
+    void AddMaterial(const Material& m) { materials_.emplace_back(m); }
+    const std::vector<Triangle>& GetTriangles() const { return triangles_; }
+    const std::vector<Material>& GetMaterials() const { return materials_; }
 
    private:
     std::vector<Triangle> triangles_;
+    std::vector<Material> materials_;
 };
 
 }  // namespace raytracer
