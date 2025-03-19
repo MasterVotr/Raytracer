@@ -8,6 +8,8 @@
 #include <fstream>
 #include <iostream>
 
+const bool cull_backfaces = true;
+
 // Viewport
 const auto w = 1000;
 const auto h = 1000;
@@ -20,38 +22,56 @@ raytracer::vec3 d(0.0, 0.0, 1.0);
 float fov = 0.6;
 
 double CollisionRayTriangle(const raytracer::Triangle& triangle, raytracer::ray& ray) {
+    // Extract triangle vertices and ray properties
     const raytracer::vec3& a = triangle.vertices[0];
     const raytracer::vec3& b = triangle.vertices[1];
     const raytracer::vec3& c = triangle.vertices[2];
     const raytracer::vec3& s = ray.direction();
     const raytracer::point3 o = ray.origin();
 
-    raytracer::vec3 e1 = b - a;
-    raytracer::vec3 e2 = c - a;
-    raytracer::vec3 p = raytracer::cross(s, e2);
-    double d = raytracer::dot(e1, p);
+    // Compute edges of the triangle
+    raytracer::vec3 e1 = b - a;  // Edge 1: vector from a to b
+    raytracer::vec3 e2 = c - a;  // Edge 2: vector from a to c
 
-    if (d < raytracer::epsilon) {
-        ray.t_distance() = raytracer::infinity;
-        return raytracer::infinity;
+    // Compute the determinant
+    raytracer::vec3 p = raytracer::cross(s, e2);  // Cross product of ray direction and edge 2
+    double d = raytracer::dot(e1, p);             // Determinant: dot product of edge 1 and p
+
+    // Cull backfaces if enabled
+    if (cull_backfaces) {
+        if (d < raytracer::epsilon) {    // If determinant is near zero, the ray is parallel to the triangle
+            return raytracer::infinity;  // No intersection
+        }
+    } else {
+        if (fabs(d) < raytracer::epsilon) {  // For non-culling, check if determinant is close to zero
+            return raytracer::infinity;      // No intersection
+        }
     }
 
-    double d_inv = 1 / d;
+    // Compute the inverse of the determinant
+    double d_inv = 1.0 / d;
+
+    // Compute the vector from vertex a to the ray origin
     raytracer::vec3 q = o - a;
+
+    // Compute the barycentric coordinate u
     double u = d_inv * raytracer::dot(q, p);
-    if (u < 0.0 && u > 1.0) {
+    if (u < 0.0 || u > 1.0) {  // If u is outside the range [0, 1], the intersection is outside the triangle
         ray.t_distance() = raytracer::infinity;
         return raytracer::infinity;
     }
 
-    raytracer::vec3 r = raytracer::cross(q, e1);
+    // Compute the barycentric coordinate v
+    raytracer::vec3 r = raytracer::cross(q, e1);  // Cross product of q and edge 1
     double v = d_inv * raytracer::dot(r, s);
-    if (v < 0.0 && u + v > 1.0) {
-        ray.t_distance() = raytracer::infinity;
+    if (v < 0.0 || (u + v) > 1.0) {  // If v is outside the range [0, 1] or u + v > 1, the intersection is outside the triangle
         return raytracer::infinity;
     }
 
+    // Compute the distance t along the ray to the intersection point
     double t = d_inv * raytracer::dot(e2, r);
+
+    // Update the ray's t_distance and return the intersection distance
     ray.t_distance() = t;
     return t;
 }
