@@ -11,6 +11,7 @@ class ray {
 
     const point3& origin() const { return orig_; }
     const vec3& direction() const { return dir_; }
+    double& t_distance() { return t_; }
 
     point3 at(double t) const { return orig_ + dir_ * t; }
 
