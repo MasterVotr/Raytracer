@@ -53,7 +53,7 @@ inline vec3 abs(const vec3& v) {
     return vec3(fabs(v.x), fabs(v.y), fabs(v.z));
 }
 
-inline std::ostream& operator<<(std::ostream& os, vec3 vec) {
+inline std::ostream& operator<<(std::ostream& os, const vec3& vec) {
     os << vec.x << " " << vec.y << " " << vec.z;
     return os;
 }
