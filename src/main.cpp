@@ -8,14 +8,10 @@
 #include <fstream>
 #include <iostream>
 
-// Image
-const int img_width = 800;
-const int img_height = 800;
-const auto aspect_ratio = 16.0 / 9.0;
-
 // Viewport
-const auto w = 100;
-const auto h = 100;
+const auto w = 1000;
+const auto h = 1000;
+const auto aspect_ratio = 16.0 / 9.0;
 
 // Camera
 raytracer::point3 o(278.0, 273.0, -1000.0);
@@ -36,59 +32,69 @@ double CollisionRayTriangle(const raytracer::Triangle& triangle, raytracer::ray&
     double d = raytracer::dot(e1, p);
 
     if (d < raytracer::epsilon) {
-        return -1.0;
+        ray.t_distance() = raytracer::infinity;
+        return raytracer::infinity;
     }
 
     double d_inv = 1 / d;
     raytracer::vec3 q = o - a;
     double u = d_inv * raytracer::dot(q, p);
     if (u < 0.0 && u > 1.0) {
-        return -1.0;
+        ray.t_distance() = raytracer::infinity;
+        return raytracer::infinity;
     }
 
     raytracer::vec3 r = raytracer::cross(q, e1);
     double v = d_inv * raytracer::dot(r, s);
     if (v < 0.0 && u + v > 1.0) {
-        return -1.0;
+        ray.t_distance() = raytracer::infinity;
+        return raytracer::infinity;
     }
 
     double t = d_inv * raytracer::dot(e2, r);
+    ray.t_distance() = t;
     return t;
 }
 
 double global_t_min = raytracer::infinity;
-double global_t_max = -1.0;
+double global_t_max = -raytracer::infinity;
 
 raytracer::color ray_color(const std::vector<raytracer::Triangle>& scene, raytracer::ray& ray) {
     // Color computation
     auto t_pixel = CollisionRayTriangle(scene[0], ray);
     auto t_max = 60000.0;
-    for (const auto& triangle : scene) {
-        auto t = CollisionRayTriangle(triangle, ray);
+    auto triangle_hit = -1;
+    for (size_t i = 0; i < scene.size(); i++) {
+        auto t = CollisionRayTriangle(scene[i], ray);
         // miss
-        if (t == -1.0) {
+        if (t == raytracer::infinity) {
             continue;
+        } else {  // hit
         }
-        // hit
+        // nearest hit
         if (t < t_pixel) {
             t_pixel = t;
+            triangle_hit = i;
         }
         // max t
         if (t > global_t_max) {
             global_t_max = t;
+            std::clog << "New global max: " << global_t_max << " at ray " << ray.origin() << " at triangle " << scene[i] << std::endl;
         }
         // min t
         if (t < global_t_min) {
             global_t_min = t;
         }
     }
+    std::clog << "Hit at triagle " << triangle_hit << ": [" << scene[triangle_hit] << "]\tat t: " << t_pixel << std::endl;
+    return {triangle_hit / 34.0, triangle_hit / 34.0, triangle_hit / 34.0};
 
     // Compute color from distance
-    auto greyscale = 1.0 - (std::min(t_pixel, 1.5 * t_max) / (1.5 * t_max));
+    auto greyscale = 1 - (std::min(t_pixel, 1.5 * t_max) / (1.5 * t_max));
     // auto greyscale = raytracer::clamp(greyscale_unclamped, 0.0, 1.0);
     raytracer::color final_color(greyscale, greyscale, greyscale);
-    std::clog << "ray from " << ray.origin() << " dir " << ray.direction() << " t_max: " << t_max << " t_count: " << scene.size()
-              << " t_pixel: " << t_pixel << " greyscale: " << greyscale << std::endl;
+    // std::clog << "ray from: " << ray.origin() << "    \tdir: " << ray.direction() << "   \tt_max: " << t_max << " \tt_count: " << scene.size()
+    //   << " \tt_pixel: " << t_pixel << " \tgreyscale: " << greyscale << std::endl;
 
     // std::clog << final_color << std::endl;
 
@@ -110,17 +116,19 @@ void RenderScene(const std::vector<raytracer::Triangle>& scene) {
     double t = 1.0;
     raytracer::vec3 b = raytracer::cross(d, u);
     double gw = 2 * t * std::tan(fov / 2);
-    double gh = gw * h / w;
-    raytracer::vec3 qw = b * gw / (w - 1);
-    raytracer::vec3 qh = u * gh / (h - 1);
-    raytracer::vec3 p00_loc = d * t - b * (gw / 2) + u * (gh / 2);
-    // std::clog << "t: " << t << "\n"
-    //           << "b: " << b << "\n"
-    //           << "gw: " << gw << "\n"
-    //           << "gh: " << gh << "\n"
-    //           << "qw: " << qw << "\n"
-    //           << "qh: " << qh << "\n"
-    //           << "p00_loc: " << p00_loc << std::endl;
+    double gh = gw * (h / w);
+    raytracer::vec3 qw = b * (gw / (w - 1));
+    raytracer::vec3 qh = u * (gh / (h - 1));
+    raytracer::vec3 p00_loc = d * t - (b * (gw / 2)) + (u * (gh / 2));
+    raytracer::vec3 r00 = p00_loc / p00_loc.length();
+    std::clog << "t: " << t << "\n"
+              << "b: " << b << "\n"
+              << "gw: " << gw << "\n"
+              << "gh: " << gh << "\n"
+              << "qw: " << qw << "\n"
+              << "qh: " << qh << "\n"
+              << "p00_loc: " << p00_loc << "\n"
+              << "r00: " << r00 << std::endl;
 
     std::vector<raytracer::color> img;
 
@@ -142,6 +150,13 @@ void RenderScene(const std::vector<raytracer::Triangle>& scene) {
     std::clog << "global_t_min: " << global_t_min << " global_t_max: " << global_t_max << std::endl;
 }
 
+int main(int argc, char const* argv[]) {
+    const char* basepath = "scenes/";
+    auto res = raytracer::LoadScene("scenes/CornellBox-Original.obj", basepath);
+
+    RenderScene(res);
+}
+
 /*struct Sphere {
     Sphere(float rad_, vec3 p_):
         rad(rad_), p(p_) {}
@@ -157,12 +172,7 @@ void RenderScene(const std::vector<raytracer::Triangle>& scene) {
     vec3 p;     // position
 }; */
 
-int main(int argc, char const* argv[]) {
-    const char* basepath = "scenes/";
-    auto res = raytracer::LoadScene("scenes/CornellBox-Original.obj", basepath);
 
-    RenderScene(res);
-}
 /*
     SaveImageToPmm(img_width, img_height, img);
 
