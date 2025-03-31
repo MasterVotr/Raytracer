@@ -17,10 +17,14 @@ const auto w = 800;
 const auto h = 800;
 
 // Camera
-raytracer::point3 o(278.0, 273.0, -1000.0);
-raytracer::vec3 u(0.0, 1.0, 0.0);
-raytracer::vec3 d(0.0, 0.0, 1.0);
-double fov = 0.6;
+raytracer::point3 camera_pos(278.0, 273.0, -1000.0);
+raytracer::vec3 camera_up(0.0, 1.0, 0.0);
+raytracer::vec3 camera_dir(0.0, 0.0, 1.0);
+double camera_fov = 0.6;
+
+// Point Lights
+raytracer::vec3 light_pos(275.0, 490.0, 275.0);
+raytracer::color light_color(1.0, 1.0, 1.0);
 
 double CollisionRayTriangle(const raytracer::Triangle& triangle, raytracer::ray& ray) {
     // Extract triangle vertices and ray properties
@@ -96,8 +100,11 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
         }
     }
 
-    // Compute color from distance
+    // Compute color
     raytracer::color final_color(0.0, 0.0, 0.0);
+    if (t_pixel == raytracer::infinity) {
+        return final_color;
+    }
 
     switch (render_type) {
         case GREYSCALE: {
@@ -110,6 +117,16 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
                 auto material_id = scene.GetTriangles()[triangle_hit].material_id;
                 final_color = scene.GetMaterials()[material_id].diffuse;
             }
+            break;
+        }
+        case PHONG: {
+            auto material_id = scene.GetTriangles()[triangle_hit].material_id;
+            const auto& material = scene.GetMaterials()[material_id];
+            
+            raytracer::vec3 I_a(0.0, 0.0, 0.0);  // Useless Ambient color
+
+            auto I = I_a + I_d + I_s + I_r + I_t;
+            final_color = I;
             break;
         }
         default:
@@ -133,12 +150,12 @@ static void SaveImageToPmm(int img_width, int img_height, std::vector<raytracer:
 
 void RenderScene(const raytracer::Scene& scene) {
     double t = 1.0;
-    raytracer::vec3 b = raytracer::cross(d, u);
-    double gw = 2 * t * std::tan(fov / 2.0);
+    raytracer::vec3 b = raytracer::cross(camera_dir, camera_up);
+    double gw = 2 * t * std::tan(camera_fov / 2.0);
     double gh = gw * (h / w);
     raytracer::vec3 qw = b * (gw / (w - 1));
-    raytracer::vec3 qh = u * (gh / (h - 1));
-    raytracer::vec3 p00 = d * t - (b * (gw / 2)) + (u * (gh / 2));
+    raytracer::vec3 qh = camera_up * (gh / (h - 1));
+    raytracer::vec3 p00 = camera_dir * t - (b * (gw / 2)) + (camera_up * (gh / 2));
     raytracer::vec3 r00 = p00 / p00.length();
 
     std::vector<raytracer::color> img;
@@ -148,7 +165,7 @@ void RenderScene(const raytracer::Scene& scene) {
         for (int x = 0; x < w; x++) {
             auto pxy = p00 + (qw * x) - (qh * y);
             auto rxy = pxy / pxy.length();
-            raytracer::ray r(o, rxy);
+            raytracer::ray r(camera_pos, rxy);
 
             raytracer::color pixel_color = ray_color(scene, r);
             img.emplace_back(pixel_color);
