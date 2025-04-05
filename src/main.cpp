@@ -130,7 +130,7 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
     for (size_t i = 0; i < scene.GetTriangles().size(); i++) {
         auto t = CollisionRayTriangle(scene.GetTriangles()[i], ray);
         // miss
-        if (t == raytracer::infinity) {
+        if (t == raytracer::infinity || t < raytracer::epsilon) {
             continue;
         }
         // closer hit
