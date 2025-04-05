@@ -174,6 +174,9 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
             exit(1);
     }
 
+    final_color.x = raytracer::clamp(final_color.x, 0.0, 1.0);
+    final_color.y = raytracer::clamp(final_color.y, 0.0, 1.0);
+    final_color.z = raytracer::clamp(final_color.z, 0.0, 1.0);
     return final_color;
 }
 
