@@ -121,6 +121,24 @@ raytracer::color render_blinn_phong(const raytracer::Triangle& triangle,
     return I_a + I_d + I_s + I_r + I_t;
 }
 
+bool is_shadowed(const raytracer::Scene& scene, const raytracer::point3& ray_intersection_point, const raytracer::vec3& light_pos) {
+    auto dist_light = (light_pos - ray_intersection_point).length();
+    auto shadow_ray = raytracer::ray(ray_intersection_point, (light_pos - ray_intersection_point).normalize());
+    auto shadow_t = CollisionRayTriangle(scene.GetTriangles()[0], shadow_ray);
+    for (size_t i = 0; i < scene.GetTriangles().size(); i++) {
+        shadow_t = CollisionRayTriangle(scene.GetTriangles()[i], shadow_ray);
+        // miss
+        if (shadow_t == raytracer::infinity || shadow_t < raytracer::epsilon) {
+            continue;
+        }
+        // closer hit
+        if (shadow_t < dist_light) {
+            return true;  // Shadowed
+        }
+    }
+    return false;  // Not shadowed
+}
+
 raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
     const auto& triangles = scene.GetTriangles();
     // Color computation
@@ -162,11 +180,21 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
             break;
         }
         case PHONG: {
-            final_color = render_phong(triangle, material, ray_intersection_point);
+            bool shadowed = is_shadowed(scene, ray_intersection_point, light_pos);
+            if (shadowed) {
+                final_color = material.diffuse * 0.1;  // TODO Shadowed
+            } else {
+                final_color = render_blinn_phong(triangle, material, ray_intersection_point);
+            }
             break;
         }
         case BLINN_PHONG: {
-            final_color = render_blinn_phong(triangle, material, ray_intersection_point);
+            bool shadowed = is_shadowed(scene, ray_intersection_point, light_pos);
+            if (shadowed) {
+                final_color = material.diffuse * 0.1;  // TODO Shadowed
+            } else {
+                final_color = render_blinn_phong(triangle, material, ray_intersection_point);
+            }
             break;
         }
         default:
