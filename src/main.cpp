@@ -222,18 +222,3 @@ int main(int argc, char const* argv[]) {
 
     RenderScene(scene);
 }
-
-/*struct Sphere {
-    Sphere(float rad_, vec3 p_):
-        rad(rad_), p(p_) {}
-
-    float intersect(const Ray &r) const { // returns distance, 0 if nohit
-        vec3 op = p - r.o; // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
-        float t, eps=1e-4, b=op.dot(r.d), det=b*b-op.dot(op)+rad*rad;
-        if (det<0) return 0; else det=sqrt(det);
-        return (t=b-det)>eps ? t : ((t=b+det)>eps ? t : 0);
-    }
-
-    float rad;  // radius
-    vec3 p;     // position
-}; */
