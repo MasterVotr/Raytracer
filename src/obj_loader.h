@@ -145,6 +145,7 @@ static Scene LoadScene(const char* filename, const char* basepath = NULL, bool t
                          static_cast<const double>(attrib.vertices[3 * vidx + 2]));
             }
             triangle.material_id = shapes[i].mesh.material_ids[f];
+            triangle.normal = calculate_triangle_normal(triangle);
             scene.AddTriangle(triangle);
             index_offset += fnum;
         }

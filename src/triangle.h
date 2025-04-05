@@ -7,13 +7,20 @@
 namespace raytracer {
 
 struct Triangle {
-    std::array<vec3, 3> vertices;
+    vec3 vertices[3];
     size_t material_id;
+    vec3 normal;
 };
 
 inline std::ostream& operator<<(std::ostream& os, Triangle triangle) {
     os << triangle.vertices[0] << " " << triangle.vertices[1] << " " << triangle.vertices[2];
     return os;
+}
+
+vec3 calculate_triangle_normal(const Triangle& t) {
+    vec3 u = t.vertices[1] - t.vertices[0];
+    vec3 v = t.vertices[2] - t.vertices[1];
+    return cross(u, v).normalize();
 }
 
 }  // namespace raytracer
