@@ -220,8 +220,8 @@ void RenderScene(const raytracer::Scene& scene) {
 }
 
 int main(int argc, char const* argv[]) {
-    const char* basepath = "scenes/";
-    auto scene = raytracer::LoadScene("scenes/CornellBox-Original.obj", basepath);
+    const char* basepath = "res/";
+    auto scene = raytracer::LoadScene("res/CornellBox-Original.obj", basepath);
 
     RenderScene(scene);
 }
