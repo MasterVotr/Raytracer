@@ -9,8 +9,8 @@
 
 const bool cull_backfaces = true;
 
-enum RENDER_TYPE { GREYSCALE, DIFFUSION, PHONG };
-const RENDER_TYPE render_type = DIFFUSION;
+enum RENDER_TYPE { DISTANCE, DIFFUSION, PHONG, BLINN_PHONG };
+const RENDER_TYPE render_type = BLINN_PHONG;
 
 // Viewport
 const auto w = 800;
@@ -81,6 +81,46 @@ double CollisionRayTriangle(const raytracer::Triangle& triangle, raytracer::ray&
     return t;
 }
 
+raytracer::color render_phong(const raytracer::Triangle& triangle,
+                              const raytracer::Material& material,
+                              const raytracer::point3& intersection_point,
+                              const raytracer::color& I_R = 0.0,
+                              const raytracer::color& I_T = 0.0) {
+    // Compute the light direction, view direction and reflection direction
+    auto d_l = (light_pos - intersection_point).normalize();
+    auto d_v = (camera_pos - intersection_point).normalize();
+    auto d_r = triangle.normal * 2.0 * raytracer::dot(triangle.normal, d_l) - d_l;
+
+    // Compute ambient, diffuse, specular, reflection and reflaction components
+    auto I_a = light_color * raytracer::color{0.0, 0.0, 0.0};  // useless Ambient color
+    auto I_d = light_color * material.diffuse * std::max(0.0, raytracer::dot(triangle.normal, d_l));
+    auto I_s = light_color * material.specular * std::pow(std::max(0.0, raytracer::dot(d_v, d_r)), material.shininess);
+    auto I_r = I_R * material.specular;
+    auto I_t = I_T * material.transmittance;
+
+    return I_a + I_d + I_s + I_r + I_t;
+}
+
+raytracer::color render_blinn_phong(const raytracer::Triangle& triangle,
+                                    const raytracer::Material& material,
+                                    const raytracer::point3& intersection_point,
+                                    const raytracer::color& I_R = 0.0,
+                                    const raytracer::color& I_T = 0.0) {
+    // Compute the light direction, view direction, and halfway vector
+    auto d_l = (light_pos - intersection_point).normalize();
+    auto d_v = (camera_pos - intersection_point).normalize();
+    auto d_h = (d_l + d_v).normalize();  // Halfway vector for Blinn-Phong
+
+    // Compute ambient, diffuse, specular, reflection, and refraction components
+    auto I_a = light_color * raytracer::color{0.0, 0.0, 0.0};  // Useless ambient color
+    auto I_d = light_color * material.diffuse * std::max(0.0, raytracer::dot(triangle.normal, d_l));
+    auto I_s = light_color * material.specular * std::pow(std::max(0.0, raytracer::dot(triangle.normal, d_h)), material.shininess);
+    auto I_r = I_R * material.specular;
+    auto I_t = I_T * material.transmittance;
+
+    return I_a + I_d + I_s + I_r + I_t;
+}
+
 raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
     const auto& triangles = scene.GetTriangles();
     // Color computation
@@ -106,27 +146,27 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
         return final_color;
     }
 
+    const auto& triangle = scene.GetTriangles()[triangle_hit];
+    const auto& material = scene.GetMaterials()[triangle.material_id];
+    auto ray_intersection_point = ray.origin() + ray.direction() * t_pixel;
     switch (render_type) {
-        case GREYSCALE: {
+        case DISTANCE: {
             auto greyscale = 1 - (std::min(t_pixel, 1.5 * t_max) / (1.5 * t_max));
             final_color = raytracer::vec3(greyscale, greyscale, greyscale);
             break;
         }
         case DIFFUSION: {
             if (t_pixel != raytracer::infinity) {
-                auto material_id = scene.GetTriangles()[triangle_hit].material_id;
-                final_color = scene.GetMaterials()[material_id].diffuse;
+                final_color = material.diffuse;
             }
             break;
         }
         case PHONG: {
-            auto material_id = scene.GetTriangles()[triangle_hit].material_id;
-            const auto& material = scene.GetMaterials()[material_id];
-            
-            raytracer::vec3 I_a(0.0, 0.0, 0.0);  // Useless Ambient color
-
-            auto I = I_a + I_d + I_s + I_r + I_t;
-            final_color = I;
+            final_color = render_phong(triangle, material, ray_intersection_point);
+            break;
+        }
+        case BLINN_PHONG: {
+            final_color = render_blinn_phong(triangle, material, ray_intersection_point);
             break;
         }
         default:
