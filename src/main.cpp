@@ -4,13 +4,14 @@
 #include "util.h"
 #include "vec3.h"
 
+#include <ctime>
 #include <fstream>
 #include <iostream>
 
 const bool cull_backfaces = true;
 
 enum RENDER_TYPE { DISTANCE, DIFFUSION, PHONG, BLINN_PHONG };
-const RENDER_TYPE render_type = BLINN_PHONG;
+const RENDER_TYPE render_type = PHONG;
 
 // Viewport
 const auto w = 800;
@@ -25,6 +26,22 @@ double camera_fov = 0.6;
 // Point Lights
 raytracer::vec3 light_pos(275.0, 490.0, 275.0);
 raytracer::color light_color(1.0, 1.0, 1.0);
+uint samples_per_triangle = 32;
+
+std::vector<raytracer::vec3> rand_points_on_triangle(uint num_of_points, const raytracer::Triangle& t) {
+    std::vector<raytracer::vec3> points;
+    for (size_t i = 0; i < num_of_points; i++) {
+        auto r1 = (float)rand() / (RAND_MAX);
+        auto r2 = (float)rand() / (RAND_MAX);
+        auto u = (r1 + r2 > 1) ? 1 - r1 : r1;
+        auto v = (r1 + r2 > 1) ? 1 - r2 : r2;
+        const auto& a = t.vertices[0];
+        const auto& b = t.vertices[1];
+        const auto& c = t.vertices[2];
+        points.emplace_back(raytracer::vec3(a + (b - a) * u + (c - a) * v));
+    }
+    return points;
+}
 
 double CollisionRayTriangle(const raytracer::Triangle& triangle, raytracer::ray& ray) {
     // Extract triangle vertices and ray properties
@@ -84,6 +101,7 @@ double CollisionRayTriangle(const raytracer::Triangle& triangle, raytracer::ray&
 raytracer::color render_phong(const raytracer::Triangle& triangle,
                               const raytracer::Material& material,
                               const raytracer::point3& intersection_point,
+                              const raytracer::color& I_l = 1.0,
                               const raytracer::color& I_R = 0.0,
                               const raytracer::color& I_T = 0.0) {
     // Compute the light direction, view direction and reflection direction
@@ -92,18 +110,20 @@ raytracer::color render_phong(const raytracer::Triangle& triangle,
     auto d_r = triangle.normal * 2.0 * raytracer::dot(triangle.normal, d_l) - d_l;
 
     // Compute ambient, diffuse, specular, reflection and reflaction components
-    auto I_a = light_color * raytracer::color{0.0, 0.0, 0.0};  // useless Ambient color
-    auto I_d = light_color * material.diffuse * std::max(0.0, raytracer::dot(triangle.normal, d_l));
-    auto I_s = light_color * material.specular * std::pow(std::max(0.0, raytracer::dot(d_v, d_r)), material.shininess);
+    auto I_a = I_l * raytracer::color{0.0, 0.0, 0.0};  // useless Ambient color
+    auto I_d = I_l * material.diffuse * std::max(0.0, raytracer::dot(triangle.normal, d_l));
+    auto I_s = I_l * material.specular * std::pow(std::max(0.0, raytracer::dot(d_v, d_r)), material.shininess);
+    auto I_e = material.emission;
     auto I_r = I_R * material.specular;
     auto I_t = I_T * material.transmittance;
 
-    return I_a + I_d + I_s + I_r + I_t;
+    return I_a + I_d + I_s + I_e + I_r + I_t;
 }
 
 raytracer::color render_blinn_phong(const raytracer::Triangle& triangle,
                                     const raytracer::Material& material,
                                     const raytracer::point3& intersection_point,
+                                    const raytracer::color& I_l = 1.0,
                                     const raytracer::color& I_R = 0.0,
                                     const raytracer::color& I_T = 0.0) {
     // Compute the light direction, view direction, and halfway vector
@@ -112,9 +132,9 @@ raytracer::color render_blinn_phong(const raytracer::Triangle& triangle,
     auto d_h = (d_l + d_v).normalize();  // Halfway vector for Blinn-Phong
 
     // Compute ambient, diffuse, specular, reflection, and refraction components
-    auto I_a = light_color * raytracer::color{0.0, 0.0, 0.0};  // Useless ambient color
-    auto I_d = light_color * material.diffuse * std::max(0.0, raytracer::dot(triangle.normal, d_l));
-    auto I_s = light_color * material.specular * std::pow(std::max(0.0, raytracer::dot(triangle.normal, d_h)), material.shininess);
+    auto I_a = I_l * raytracer::color{0.0, 0.0, 0.0};  // Useless ambient color
+    auto I_d = I_l * material.diffuse * std::max(0.0, raytracer::dot(triangle.normal, d_l));
+    auto I_s = I_l * material.specular * std::pow(std::max(0.0, raytracer::dot(triangle.normal, d_h)), material.shininess);
     auto I_r = I_R * material.specular;
     auto I_t = I_T * material.transmittance;
 
@@ -124,7 +144,7 @@ raytracer::color render_blinn_phong(const raytracer::Triangle& triangle,
 bool is_shadowed(const raytracer::Scene& scene, const raytracer::point3& ray_intersection_point, const raytracer::vec3& light_pos) {
     auto dist_light = (light_pos - ray_intersection_point).length();
     auto shadow_ray = raytracer::ray(ray_intersection_point, (light_pos - ray_intersection_point).normalize());
-    auto shadow_t = CollisionRayTriangle(scene.GetTriangles()[0], shadow_ray);
+    double shadow_t;
     for (size_t i = 0; i < scene.GetTriangles().size(); i++) {
         shadow_t = CollisionRayTriangle(scene.GetTriangles()[i], shadow_ray);
         // miss
@@ -180,18 +200,32 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
             break;
         }
         case PHONG: {
-            bool shadowed = is_shadowed(scene, ray_intersection_point, light_pos);
-            if (shadowed) {
-                final_color = material.diffuse * 0.1;  // TODO Shadowed
-            } else {
-                final_color = render_blinn_phong(triangle, material, ray_intersection_point);
+            for (size_t i = 0; i < scene.GetLights().size(); i++) {
+                const auto& light = scene.GetLights()[i];
+                const auto& light_material = scene.GetMaterials()[light.material_id];
+                auto p_ls = rand_points_on_triangle(samples_per_triangle, light);
+                auto S_l = raytracer::calculate_triangle_area(light);
+                raytracer::color accumulated_color(0.0, 0.0, 0.0);
+                for (const auto& p_l : p_ls) {
+                    bool shadowed = is_shadowed(scene, ray_intersection_point, p_l);
+                    if (!shadowed) {
+                        auto& n_l = light.normal;
+                        auto d_l = (p_l - ray_intersection_point).normalize();  // normalize
+                        auto s = samples_per_triangle;
+                        auto d = (p_l - ray_intersection_point).length();
+                        auto w = (S_l * (raytracer::dot(n_l, (-d_l)))) / (s * d * d);
+                        auto I_l = light_material.emission * w;
+                        accumulated_color += render_phong(triangle, material, ray_intersection_point, I_l);
+                    }
+                }
+                final_color += accumulated_color;
             }
             break;
         }
         case BLINN_PHONG: {
             bool shadowed = is_shadowed(scene, ray_intersection_point, light_pos);
             if (shadowed) {
-                final_color = material.diffuse * 0.1;  // TODO Shadowed
+                final_color = material.diffuse * 0.0;  // TODO Shadowed
             } else {
                 final_color = render_blinn_phong(triangle, material, ray_intersection_point);
             }
@@ -201,6 +235,8 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
             std::cerr << "Invalid render type" << std::endl;
             exit(1);
     }
+
+    // TODO: Add reflection and refraction
 
     final_color.x = raytracer::clamp(final_color.x, 0.0, 1.0);
     final_color.y = raytracer::clamp(final_color.y, 0.0, 1.0);
@@ -248,6 +284,7 @@ void RenderScene(const raytracer::Scene& scene) {
 }
 
 int main(int argc, char const* argv[]) {
+    srand(time(0));
     const char* basepath = "res/";
     auto scene = raytracer::LoadScene("res/CornellBox-Original.obj", basepath);
 

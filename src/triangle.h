@@ -23,4 +23,12 @@ vec3 calculate_triangle_normal(const Triangle& t) {
     return cross(u, v).normalize();
 }
 
+float calculate_triangle_area(const Triangle& t) {
+    vec3 u = t.vertices[1] - t.vertices[0];
+    vec3 v = t.vertices[2] - t.vertices[1];
+    vec3 c = cross(u, v);
+    double c_magnitude = c.length();
+    return 0.5 * c_magnitude;
+}
+
 }  // namespace raytracer
