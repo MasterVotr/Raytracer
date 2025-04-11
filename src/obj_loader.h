@@ -147,6 +147,11 @@ static Scene LoadScene(const char* filename, const char* basepath = NULL, bool t
             triangle.material_id = shapes[i].mesh.material_ids[f];
             triangle.normal = calculate_triangle_normal(triangle);
             scene.AddTriangle(triangle);
+            // Lights
+            if (materials[triangle.material_id].emission[0] != 0.0 || materials[triangle.material_id].emission[1] != 0.0 ||
+                materials[triangle.material_id].emission[2] != 0.0) {
+                scene.AddLight(triangle);
+            }
             index_offset += fnum;
         }
     }
