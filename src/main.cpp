@@ -162,6 +162,7 @@ bool is_shadowed(const raytracer::Scene& scene, const raytracer::point3& ray_int
 raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
     const auto& triangles = scene.GetTriangles();
     // Color computation
+    raytracer::color final_color(0.0, 0.0, 0.0);
     auto t_pixel = raytracer::infinity;
     auto t_max = 2000.0;
     auto triangle_hit = -1;
@@ -178,8 +179,7 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
         }
     }
 
-    // Compute color
-    raytracer::color final_color(0.0, 0.0, 0.0);
+    // No point intersection
     if (t_pixel == raytracer::infinity) {
         return final_color;
     }
@@ -213,7 +213,7 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
                         auto d_l = (p_l - ray_intersection_point).normalize();  // normalize
                         auto s = samples_per_triangle;
                         auto d = (p_l - ray_intersection_point).length();
-                        auto w = (S_l * (raytracer::dot(n_l, (-d_l)))) / (s * d * d);
+                        auto w = (S_l * std::max(0.0, raytracer::dot(n_l, (-d_l)))) / (s * d * d + raytracer::epsilon);
                         auto I_l = light_material.emission * w;
                         accumulated_color += render_phong(triangle, material, ray_intersection_point, I_l);
                     }
@@ -223,11 +223,25 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
             break;
         }
         case BLINN_PHONG: {
-            bool shadowed = is_shadowed(scene, ray_intersection_point, light_pos);
-            if (shadowed) {
-                final_color = material.diffuse * 0.0;  // TODO Shadowed
-            } else {
-                final_color = render_blinn_phong(triangle, material, ray_intersection_point);
+            for (size_t i = 0; i < scene.GetLights().size(); i++) {
+                const auto& light = scene.GetLights()[i];
+                const auto& light_material = scene.GetMaterials()[light.material_id];
+                auto p_ls = rand_points_on_triangle(samples_per_triangle, light);
+                auto S_l = raytracer::calculate_triangle_area(light);
+                raytracer::color accumulated_color(0.0, 0.0, 0.0);
+                for (const auto& p_l : p_ls) {
+                    bool shadowed = is_shadowed(scene, ray_intersection_point, p_l);
+                    if (!shadowed) {
+                        auto& n_l = light.normal;
+                        auto d_l = (p_l - ray_intersection_point).normalize();  // normalize
+                        auto s = samples_per_triangle;
+                        auto d = (p_l - ray_intersection_point).length();
+                        auto w = (S_l * std::max(0.0, raytracer::dot(n_l, (-d_l)))) / (s * d * d + raytracer::epsilon);
+                        auto I_l = light_material.emission * w;
+                        accumulated_color += render_blinn_phong(triangle, material, ray_intersection_point, I_l);
+                    }
+                }
+                final_color += accumulated_color;
             }
             break;
         }
