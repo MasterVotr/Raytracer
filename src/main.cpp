@@ -11,7 +11,8 @@
 const bool cull_backfaces = true;
 
 enum RENDER_TYPE { DISTANCE, DIFFUSION, PHONG, BLINN_PHONG };
-const RENDER_TYPE render_type = PHONG;
+const RENDER_TYPE render_type = BLINN_PHONG;
+const int MAX_DEPTH = 5;
 
 // Viewport
 const auto w = 800;
@@ -159,7 +160,7 @@ bool is_shadowed(const raytracer::Scene& scene, const raytracer::point3& ray_int
     return false;  // Not shadowed
 }
 
-raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
+raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray, int depth = 0) {
     const auto& triangles = scene.GetTriangles();
     // Color computation
     raytracer::color final_color(0.0, 0.0, 0.0);
@@ -250,11 +251,42 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray) {
             exit(1);
     }
 
-    // TODO: Add reflection and refraction
+    // if (final_color.x > 1.0 || final_color.y > 1.0 || final_color.z > 1.0 || final_color.x < 0.0 || final_color.y < 0.0 || final_color.z < 0.0) {
+    //     std::clog << "Final color before clamping: " << final_color << std::endl;
+    // }
 
     final_color.x = raytracer::clamp(final_color.x, 0.0, 1.0);
     final_color.y = raytracer::clamp(final_color.y, 0.0, 1.0);
     final_color.z = raytracer::clamp(final_color.z, 0.0, 1.0);
+
+    // Reflection and refraction if not already white
+    if (depth < MAX_DEPTH && !(final_color == raytracer::vec3(1.0))) {
+        // Reflection
+        if (!(material.specular == raytracer::vec3(0.0))) {
+            raytracer::vec3 d_v = -ray.direction();
+            auto& d_n = triangle.normal;
+            auto d_r = d_n * 2.0 * raytracer::dot(d_n, d_v) - d_v;
+            auto reflection_ray = raytracer::ray(ray_intersection_point, d_r);
+            auto I_R = ray_color(scene, reflection_ray, depth + 1);
+            final_color += I_R * material.specular;
+        }
+        // Refraction
+        if (!(material.transmittance == raytracer::vec3(0.0))) {
+            raytracer::vec3 d_v = -ray.direction();  // Inverted direction
+            auto& d_n = triangle.normal;
+            float n1 = 1.0;  // Air
+            float n2 = material.ior;
+            float n = n1 / n2;
+            float ndotv = raytracer::dot(d_n, d_v);
+            auto t = d_v * -n + d_n * (n * ndotv - sqrt(1 - n * n * (1 - ndotv * ndotv)));
+            if (t.length() >= raytracer::epsilon) {
+                auto refraction_ray = raytracer::ray(ray_intersection_point, t);
+                auto I_T = ray_color(scene, refraction_ray, depth + 1);
+                final_color += I_T * material.transmittance;
+            }
+        }
+    }
+
     return final_color;
 }
 
