@@ -32,6 +32,7 @@ class vec3 {
     void operator+=(const vec3& v) { x += v.x, y += v.y, z += v.z; }
     void operator*=(double a) { x *= a, y *= a, z *= a; }
     void operator*=(const vec3& v) { x *= v.x, y *= v.y, z *= v.z; }
+    bool operator==(const vec3& v) const { return (fabs(x - v.x) < epsilon && fabs(y - v.y) < epsilon && fabs(z - v.z) < epsilon); }
     double length() const { return sqrt(x * x + y * y + z * z); }
     double average() { return (x + y + z) / 3; }
     vec3 normalize() const { return (*this) / length(); }
