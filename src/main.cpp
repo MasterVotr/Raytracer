@@ -12,7 +12,7 @@ const bool cull_backfaces = true;
 
 enum RENDER_TYPE { DISTANCE, DIFFUSION, PHONG, BLINN_PHONG };
 const RENDER_TYPE render_type = BLINN_PHONG;
-const int MAX_DEPTH = 5;
+const int MAX_DEPTH = 2;
 
 // Viewport
 const auto w = 800;
@@ -204,6 +204,9 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray, i
             for (size_t i = 0; i < scene.GetLights().size(); i++) {
                 const auto& light = scene.GetLights()[i];
                 const auto& light_material = scene.GetMaterials()[light.material_id];
+                if (scene.GetLights()[i] == triangle) {
+                    return light_material.emission;  // Early exit if the triangle is a light source
+                }
                 auto p_ls = rand_points_on_triangle(samples_per_triangle, light);
                 auto S_l = raytracer::calculate_triangle_area(light);
                 raytracer::color accumulated_color(0.0, 0.0, 0.0);
@@ -227,6 +230,9 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray, i
             for (size_t i = 0; i < scene.GetLights().size(); i++) {
                 const auto& light = scene.GetLights()[i];
                 const auto& light_material = scene.GetMaterials()[light.material_id];
+                if (scene.GetLights()[i] == triangle) {
+                    return light_material.emission;  // Early exit if the triangle is a light source
+                }
                 auto p_ls = rand_points_on_triangle(samples_per_triangle, light);
                 auto S_l = raytracer::calculate_triangle_area(light);
                 raytracer::color accumulated_color(0.0, 0.0, 0.0);
@@ -259,8 +265,12 @@ raytracer::color ray_color(const raytracer::Scene& scene, raytracer::ray& ray, i
     final_color.y = raytracer::clamp(final_color.y, 0.0, 1.0);
     final_color.z = raytracer::clamp(final_color.z, 0.0, 1.0);
 
+    if (final_color == raytracer::vec3(1.0)) {
+        return final_color;  // Early exit if color is white
+    }
+
     // Reflection and refraction if not already white
-    if (depth < MAX_DEPTH && !(final_color == raytracer::vec3(1.0))) {
+    if (depth < MAX_DEPTH) {
         // Reflection
         if (!(material.specular == raytracer::vec3(0.0))) {
             raytracer::vec3 d_v = -ray.direction();
