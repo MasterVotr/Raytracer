@@ -1,6 +1,7 @@
 #pragma once
 
 #define TINYOBJLOADER_IMPLEMENTATION
+#include "../include/json.hpp"
 #include "../include/tiny_obj_loader.h"
 #include "scene.h"
 
@@ -100,10 +101,31 @@ static void PrintInfo(const tinyobj::attrib_t& attrib,
             printf("]");
             printf("\n");
         }
+
+        // Print per-face material
+        for (size_t i = 0; i < materials.size(); i++) {
+            printf("material[%ld].name = %s\n", static_cast<long>(i), materials[i].name.c_str());
+            printf("  material[%ld].ambient = (%f, %f, %f)\n", static_cast<long>(i), static_cast<const double>(materials[i].ambient[0]),
+                   static_cast<const double>(materials[i].ambient[1]), static_cast<const double>(materials[i].ambient[2]));
+            printf("  material[%ld].diffuse = (%f, %f, %f)\n", static_cast<long>(i), static_cast<const double>(materials[i].diffuse[0]),
+                   static_cast<const double>(materials[i].diffuse[1]), static_cast<const double>(materials[i].diffuse[2]));
+            printf("  material[%ld].specular = (%f, %f, %f)\n", static_cast<long>(i), static_cast<const double>(materials[i].specular[0]),
+                   static_cast<const double>(materials[i].specular[1]), static_cast<const double>(materials[i].specular[2]));
+            printf("  material[%ld].transmittance = (%f, %f, %f)\n", static_cast<long>(i), static_cast<const double>(materials[i].transmittance[0]),
+                   static_cast<const double>(materials[i].transmittance[1]), static_cast<const double>(materials[i].transmittance[2]));
+            printf("  material[%ld].emission = (%f, %f, %f)\n", static_cast<long>(i), static_cast<const double>(materials[i].emission[0]),
+                   static_cast<const double>(materials[i].emission[1]), static_cast<const double>(materials[i].emission[2]));
+            printf("  material[%ld].shininess = %f\n", static_cast<long>(i), static_cast<const double>(materials[i].shininess));
+            printf("  material[%ld].ior = %f\n", static_cast<long>(i), static_cast<const double>(materials[i].ior));
+            printf("  material[%ld].dissolve = %f\n", static_cast<long>(i), static_cast<const double>(materials[i].dissolve));
+        }
     }
 }
 
-static Scene LoadScene(const char* filename, const char* basepath = NULL, bool triangulate = true) {
+static Scene LoadScene(const nlohmann::json& config, bool triangulate = true) {
+    std::string filename = config.at("scene").at("source_file");
+    std::string basepath = config.at("scene").at("basepath");
+    Scene scene(config);
     std::clog << "Loading " << filename << std::flush;
 
     tinyobj::attrib_t attrib;
@@ -112,7 +134,8 @@ static Scene LoadScene(const char* filename, const char* basepath = NULL, bool t
 
     std::string warn;
     std::string err;
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename, basepath, triangulate);
+
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str(), basepath.c_str(), triangulate);
 
     if (!warn.empty()) {
         std::cout << "WARN: " << warn << std::endl;
@@ -129,8 +152,6 @@ static Scene LoadScene(const char* filename, const char* basepath = NULL, bool t
 
     // PrintInfo(attrib, shapes, materials);
 
-    Scene scene;
-
     std::clog << "Translating triangles to structures..." << std::flush;
     for (size_t i = 0; i < shapes.size(); i++) {
         size_t index_offset = 0;
@@ -141,8 +162,8 @@ static Scene LoadScene(const char* filename, const char* basepath = NULL, bool t
                 tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
                 auto vidx = idx.vertex_index;
                 triangle.vertices[v] =
-                    vec3(static_cast<const double>(attrib.vertices[3 * vidx + 0]), static_cast<const double>(attrib.vertices[3 * vidx + 1]),
-                         static_cast<const double>(attrib.vertices[3 * vidx + 2]));
+                    vec3(static_cast<const float>(attrib.vertices[3 * vidx + 0]), static_cast<const float>(attrib.vertices[3 * vidx + 1]),
+                         static_cast<const float>(attrib.vertices[3 * vidx + 2]));
             }
             triangle.material_id = shapes[i].mesh.material_ids[f];
             triangle.normal = calculate_triangle_normal(triangle);
