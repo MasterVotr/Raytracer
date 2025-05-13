@@ -1,0 +1,57 @@
+{
+    "seed": 42,
+    "triangulate": true,
+    "output": {
+        "filename": "output_1_spp_jitter.ppm"
+    },
+    "renderer": {
+        "max_depth": 1,
+        "samples_per_triangle": 32,
+        "render_type": "blinn_phong",
+        "cull_backfaces": true,
+        "background_color": [
+            0.1,
+            0.1,
+            0.1
+        ]
+    },
+    "scene": {
+        "source_file": "res/CornellBox-Original.obj",
+        "basepath": "res/",
+        "camera": {
+            "pos": [
+                278.0,
+                273.0,
+                -1000.0
+            ],
+            "up": [
+                0.0,
+                1.0,
+                0.0
+            ],
+            "dir": [
+                0.0,
+                0.0,
+                1.0
+            ],
+            "fov": 0.6,
+            "width": 100,
+            "height": 100,
+            "samples_per_pixel": 1
+        },
+        "point_lights": [
+            {
+                "pos": [
+                    275.0,
+                    490.0,
+                    275.0
+                ],
+                "color": [
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            }
+        ]
+    }
+}
