@@ -6,9 +6,9 @@
 namespace raytracer {
 
 // Constants
-const double epsilon = 1e-9;  // Small value
-const double infinity = std::numeric_limits<double>::infinity();
-const double pi = 3.1415926535897932385;
+const float epsilon = 1e-9;  // Small value
+const float infinity = std::numeric_limits<float>::infinity();
+const float pi = 3.1415926535897932385;
 
 // Utility functions
 template <typename T>
