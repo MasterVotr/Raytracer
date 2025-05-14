@@ -1,11 +1,16 @@
 TINYOBJ_INCLUDE_PATH = include/tiny_obj_loader.h
 
-CFLAGS = -std=c++17 -I$(TINYOBJ_INCLUDE_PATH) -g
+CXX = g++
+CFLAGS = -std=c++17
+CFLAGSDEBUG = -std=c++17 -Wall -Wextra -Wpedantic -fsanitize=address -g
 
-raytracer: src/main.cpp
-	g++ $(CFLAGS) src/main.cpp -o raytracer
+.PHONY: run clean raytracer
 
-.PHONY: run clean
+raytracer: raytracer src/main.cpp
+	$(CXX) $(CFLAGS) src/main.cpp -o raytracer
+
+raytracer_debug: raytracer src/main.cpp
+	$(CXX) $(CFLAGSDEBUG) src/main.cpp -o raytracer
 
 run: raytracer
 	./raytracer
