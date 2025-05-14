@@ -2,12 +2,13 @@
     "seed": 42,
     "triangulate": true,
     "output": {
-        "filename": "output_1_spp_jitter.ppm"
+        "filename": "output.ppm"
     },
     "renderer": {
         "max_depth": 1,
         "samples_per_triangle": 32,
         "render_type": "blinn_phong",
+        "shading_type": "flat",
         "cull_backfaces": true,
         "background_color": [
             0.1,
@@ -35,8 +36,8 @@
                 1.0
             ],
             "fov": 0.6,
-            "width": 100,
-            "height": 100,
+            "width": 800,
+            "height": 800,
             "samples_per_pixel": 1
         },
         "point_lights": [
