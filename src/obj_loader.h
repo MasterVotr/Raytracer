@@ -152,7 +152,11 @@ static Scene LoadScene(const nlohmann::json& config, bool triangulate = true) {
 
     // PrintInfo(attrib, shapes, materials);
 
+    if (attrib.normals.size() == 0) {
+        std::cerr << "No normals found in the model, only flat shading available" << std::endl;
+    }
     std::clog << "Translating triangles to structures..." << std::flush;
+
     for (size_t i = 0; i < shapes.size(); i++) {
         size_t index_offset = 0;
         for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
@@ -161,9 +165,15 @@ static Scene LoadScene(const nlohmann::json& config, bool triangulate = true) {
             for (size_t v = 0; v < fnum; v++) {
                 tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
                 auto vidx = idx.vertex_index;
-                triangle.vertices[v] =
+                triangle.vertices[v].pos =
                     vec3(static_cast<const float>(attrib.vertices[3 * vidx + 0]), static_cast<const float>(attrib.vertices[3 * vidx + 1]),
                          static_cast<const float>(attrib.vertices[3 * vidx + 2]));
+                auto nidx = idx.normal_index;
+                if (nidx >= 0) {
+                    triangle.vertices[v].norm =
+                        vec3(static_cast<const float>(attrib.normals[3 * nidx + 0]), static_cast<const float>(attrib.normals[3 * nidx + 1]),
+                             static_cast<const float>(attrib.normals[3 * nidx + 2]));
+                }
             }
             triangle.material_id = shapes[i].mesh.material_ids[f];
             triangle.normal = calculate_triangle_normal(triangle);
@@ -191,7 +201,7 @@ static Scene LoadScene(const nlohmann::json& config, bool triangulate = true) {
         scene.AddMaterial(material);
     }
 
-    std::clog << "\rTranslating everything to structures done." << std::endl;
+    std::clog << "\rTranslating everything to structures done.          " << std::endl;
     return scene;
 }
 

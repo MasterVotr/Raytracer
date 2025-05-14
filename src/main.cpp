@@ -14,6 +14,7 @@ namespace raytracer {
 class Renderer {
    public:
     enum RENDER_TYPE { DISTANCE, DIFFUSION, PHONG, BLINN_PHONG };
+    enum SHADING_TYPE { FLAT, SMOOTH };
 
     inline Renderer(const nlohmann::json& config) : config_(config) { config_setup(config_["renderer"]); };
 
@@ -25,31 +26,32 @@ class Renderer {
     unsigned int samples_per_triangle_;
     color background_color_;
     RENDER_TYPE render_type_;
+    SHADING_TYPE shading_type_;
     bool cull_backfaces_ = true;
 
    private:
     std::vector<ray> generate_rays(const Scene& scene);
-    color ray_color(const Scene& scene, ray& ray, int depth = 0);
+    color ray_color(const Scene& scene, ray& ray, unsigned int depth = 0);
     color render_distance(float t_pixel, float t_max);
     color render_local_ilumination(const Scene& scene,
-                                   const raytracer::Triangle& triangle,
-                                   const raytracer::Material& material,
-                                   const raytracer::point3& intersection_point,
-                                   const raytracer::color& I_l = 1.0);
+                                   const Triangle& triangle,
+                                   const Material& material,
+                                   const point3& intersection_point,
+                                   const vec3& intersection_point_normal);
     color render_phong(const Camera& camera,
-                       const raytracer::Triangle& triangle,
-                       const raytracer::Material& material,
-                       const raytracer::point3& intersection_point,
+                       const Material& material,
+                       const point3& intersection_point,
+                       const vec3& intersection_point_normal,
                        const point3& light_pos,
-                       const raytracer::color& I_l = 1.0);
+                       const color& I_l = 1.0);
     color render_blinn_phong(const Camera& camera,
-                             const raytracer::Triangle& triangle,
-                             const raytracer::Material& material,
-                             const raytracer::point3& intersection_point,
+                             const Material& material,
+                             const point3& intersection_point,
+                             const vec3& intersection_point_normal,
                              const point3& light_pos,
-                             const raytracer::color& I_l = 1.0);
-    ray calculate_reflection_ray(const Triangle& triangle, const Material& material, const ray& r, const point3& ray_intersection_point);
-    ray calculate_refraction_ray(const Triangle& triangle, const Material& material, const ray& r, const point3& ray_intersection_point);
+                             const color& I_l = 1.0);
+    ray calculate_reflection_ray(const ray& r, const point3& ray_intersection_point, const vec3& triangle_normal);
+    ray calculate_refraction_ray(const ray& r, const point3& ray_intersection_point, const vec3& triangle_normal, float ior);
     bool is_shadowed(const Scene& scene, const point3& ray_intersection_point, const vec3& light_pos);
     float collision_ray_triangle(const Triangle& triangle, ray& ray);
 
@@ -65,7 +67,7 @@ void Renderer::RenderScene(const Scene& scene) {
     std::vector<ray> rays = generate_rays(scene);
 
     for (size_t r = 0; r < rays.size(); r++) {
-        std::clog << "\rRendering scene... " << (r * 1.0 / rays.size()) * 100.0 << "%" << std::flush;
+        std::clog << "\rRendering scene... " << (r * 1.0 / rays.size()) * 100.0 << "%     " << std::flush;
 
         color pixel_color = ray_color(scene, rays[r]);
         for (size_t i = 0; i < scene.GetCamera().samples_per_pixel - 1; i++) {
@@ -101,7 +103,6 @@ std::vector<ray> Renderer::generate_rays(const Scene& scene) {
     vec3 qw = b * (gw / (width - 1));
     vec3 qh = camera_up * (gh / (height - 1));
     vec3 p00 = camera_dir * t - (b * (gw / 2)) + (camera_up * (gh / 2));
-    vec3 r00 = p00 / p00.length();
 
     std::vector<ray> rays;
     rays.reserve(width * height);
@@ -119,7 +120,7 @@ std::vector<ray> Renderer::generate_rays(const Scene& scene) {
     return rays;
 }
 
-color Renderer::ray_color(const Scene& scene, ray& r, int depth) {
+color Renderer::ray_color(const Scene& scene, ray& r, unsigned int depth) {
     // Ray intersection with the scene
     color final_color(0.0);
     auto t_pixel = infinity;
@@ -146,6 +147,10 @@ color Renderer::ray_color(const Scene& scene, ray& r, int depth) {
     const auto& triangle = scene.GetTriangles()[triangle_hit];
     const auto& material = scene.GetMaterials()[triangle.material_id];
     auto ray_intersection_point = r.origin() + r.direction() * t_pixel;
+    vec3 normal = triangle.normal;
+    if (shading_type_ == SMOOTH) {
+        normal = interpolate_normal_on_triangle(triangle, ray_intersection_point);
+    }
     switch (render_type_) {
         case DISTANCE: {
             final_color += render_distance(t_pixel, t_max);
@@ -157,7 +162,7 @@ color Renderer::ray_color(const Scene& scene, ray& r, int depth) {
         }
         case PHONG:
         case BLINN_PHONG: {
-            final_color += render_local_ilumination(scene, triangle, material, ray_intersection_point);
+            final_color += render_local_ilumination(scene, triangle, material, ray_intersection_point, normal);
             break;
         }
         default:
@@ -177,13 +182,13 @@ color Renderer::ray_color(const Scene& scene, ray& r, int depth) {
     if (depth < max_depth_) {
         // Reflection
         if (!(material.specular == vec3(0.0))) {
-            ray reflection_ray = calculate_reflection_ray(triangle, material, r, ray_intersection_point);
+            ray reflection_ray = calculate_reflection_ray(r, ray_intersection_point, triangle.normal);
             auto I_R = ray_color(scene, reflection_ray, depth + 1);
             final_color += I_R * material.specular;
         }
         // Refraction
         if (!(material.transmittance == vec3(0.0))) {
-            ray refraction_ray = calculate_refraction_ray(triangle, material, r, ray_intersection_point);
+            ray refraction_ray = calculate_refraction_ray(r, ray_intersection_point, triangle.normal, material.ior);
             if (!(refraction_ray.direction() == vec3(0.0f))) {
                 auto I_T = ray_color(scene, refraction_ray, depth + 1);
                 final_color += I_T * material.transmittance;
@@ -203,7 +208,7 @@ color Renderer::render_local_ilumination(const Scene& scene,
                                          const Triangle& triangle,
                                          const Material& material,
                                          const point3& intersection_point,
-                                         const color& I_l) {
+                                         const vec3& intersection_point_normal) {
     color final_color(0.0);
     for (size_t l = 0; l < scene.GetLights().size(); l++) {
         const auto& light = scene.GetLights()[l];
@@ -221,15 +226,15 @@ color Renderer::render_local_ilumination(const Scene& scene,
                 auto d_l = (p_l - intersection_point).normalize();  // normalize
                 auto s = samples_per_triangle_;
                 auto d = (p_l - intersection_point).length();
-                auto w = (S_l * std::max(0.0f, dot(n_l, (-d_l)))) / (s * d * d + raytracer::epsilon);
+                auto w = (S_l * std::max(0.0f, dot(n_l, (-d_l)))) / (s * d * d + epsilon);
                 auto I_l = light_material.emission * w;
                 switch (render_type_) {
                     case PHONG: {
-                        accumulated_color += render_phong(scene.GetCamera(), triangle, material, intersection_point, p_l, I_l);
+                        accumulated_color += render_phong(scene.GetCamera(), material, intersection_point, intersection_point_normal, p_l, I_l);
                         break;
                     }
                     case BLINN_PHONG: {
-                        accumulated_color += render_blinn_phong(scene.GetCamera(), triangle, material, intersection_point, p_l, I_l);
+                        accumulated_color += render_blinn_phong(scene.GetCamera(), material, intersection_point, intersection_point_normal, p_l, I_l);
                         break;
                     }
                     default: {
@@ -246,19 +251,19 @@ color Renderer::render_local_ilumination(const Scene& scene,
 }
 
 color Renderer::render_phong(const Camera& camera,
-                             const Triangle& triangle,
                              const Material& material,
                              const point3& intersection_point,
+                             const vec3& intersection_point_normal,
                              const point3& light_pos,
                              const color& I_l) {
     // Compute the light direction, view direction and reflection direction
     auto d_l = (light_pos - intersection_point).normalize();
     auto d_v = (camera.pos - intersection_point).normalize();
-    auto d_r = triangle.normal * 2.0f * dot(triangle.normal, d_l) - d_l;
+    auto d_r = intersection_point_normal * 2.0f * dot(intersection_point_normal, d_l) - d_l;
 
     // Compute ambient, diffuse, specular, reflection and reflaction components
     auto I_a = I_l * color(0.0f);  // useless Ambient color
-    auto I_d = I_l * material.diffuse * std::max(0.0f, dot(triangle.normal, d_l));
+    auto I_d = I_l * material.diffuse * std::max(0.0f, dot(intersection_point_normal, d_l));
     auto I_s = I_l * material.specular * std::pow(std::max(0.0f, dot(d_v, d_r)), material.shininess);
     auto I_e = material.emission;
 
@@ -266,9 +271,9 @@ color Renderer::render_phong(const Camera& camera,
 }
 
 color Renderer::render_blinn_phong(const Camera& camera,
-                                   const Triangle& triangle,
                                    const Material& material,
                                    const point3& intersection_point,
+                                   const vec3& intersection_point_normal,
                                    const point3& light_pos,
                                    const color& I_l) {
     // Compute the light direction, view direction, and halfway vector
@@ -278,8 +283,8 @@ color Renderer::render_blinn_phong(const Camera& camera,
 
     // Compute ambient, diffuse, specular, reflection, and refraction components
     auto I_a = I_l * color(0.0f);  // Useless ambient color
-    auto I_d = I_l * material.diffuse * std::max(0.0f, dot(triangle.normal, d_l));
-    auto I_s = I_l * material.specular * std::pow(std::max(0.0f, dot(triangle.normal, d_h)), material.shininess);
+    auto I_d = I_l * material.diffuse * std::max(0.0f, dot(intersection_point_normal, d_l));
+    auto I_s = I_l * material.specular * std::pow(std::max(0.0f, dot(intersection_point_normal, d_h)), material.shininess);
 
     return I_a + I_d + I_s;
 }
@@ -304,9 +309,9 @@ bool Renderer::is_shadowed(const Scene& scene, const point3& ray_intersection_po
 
 float Renderer::collision_ray_triangle(const Triangle& triangle, ray& ray) {
     // Extract triangle vertices and ray properties
-    const vec3& a = triangle.vertices[0];
-    const vec3& b = triangle.vertices[1];
-    const vec3& c = triangle.vertices[2];
+    const vec3& a = triangle.vertices[0].pos;
+    const vec3& b = triangle.vertices[1].pos;
+    const vec3& c = triangle.vertices[2].pos;
     const vec3& s = ray.direction();
     const point3 o = ray.origin();
 
@@ -357,19 +362,19 @@ float Renderer::collision_ray_triangle(const Triangle& triangle, ray& ray) {
     return t;
 }
 
-ray Renderer::calculate_reflection_ray(const Triangle& triangle, const Material& material, const ray& r, const point3& ray_intersection_point) {
+ray Renderer::calculate_reflection_ray(const ray& r, const point3& ray_intersection_point, const vec3& triangle_normal) {
     vec3 d_v = -r.direction();
-    auto& d_n = triangle.normal;
+    auto& d_n = triangle_normal;
     auto d_r = d_n * 2.0 * dot(d_n, d_v) - d_v;
     ray reflection_ray = ray(ray_intersection_point, d_r.normalize());
     return reflection_ray;
 }
 
-ray Renderer::calculate_refraction_ray(const Triangle& triangle, const Material& material, const ray& r, const point3& ray_intersection_point) {
+ray Renderer::calculate_refraction_ray(const ray& r, const point3& ray_intersection_point, const vec3& triangle_normal, float ior) {
     vec3 d_v = -r.direction();  // Inverted direction
-    auto& d_n = triangle.normal;
+    auto& d_n = triangle_normal;
     float n1 = 1.0;  // Air
-    float n2 = material.ior;
+    float n2 = ior;
     float n = n1 / n2;
     float ndotv = dot(d_n, d_v);
     auto t = d_v * -n + d_n * (n * ndotv - sqrt(1 - n * n * (1 - ndotv * ndotv)));
@@ -387,7 +392,7 @@ void Renderer::config_setup(const nlohmann::json& config) {
     cull_backfaces_ = config.at("cull_backfaces");
 
     // Setup render type
-    if (config["render_type"] == "distance") {
+    if (config.at("render_type") == "distance") {
         render_type_ = DISTANCE;
     } else if (config.at("render_type") == "diffusion") {
         render_type_ = DIFFUSION;
@@ -399,15 +404,26 @@ void Renderer::config_setup(const nlohmann::json& config) {
         std::cerr << "Invalid render type" << std::endl;
         exit(1);
     }
+
+    // Setup shading type
+    if (config.at("shading_type") == "flat") {
+        shading_type_ = FLAT;
+    } else if (config.at("shading_type") == "smooth") {
+        shading_type_ = SMOOTH;
+    } else {
+        std::cerr << "Invalid shadiing type" << std::endl;
+        exit(1);
+    }
+
     std::clog << "\rRenderer configured     " << std::endl;
 }
 
-void Renderer::save_image_to_pmm(int img_width, int img_height, std::vector<raytracer::color>& img) {
+void Renderer::save_image_to_pmm(int img_width, int img_height, std::vector<color>& img) {
     std::clog << "Saving image to output.pmm" << std::endl;
     std::ofstream output(config_["output"]["filename"]);
     output << "P3\n" << img_width << ' ' << img_height << "\n255\n";
     for (const auto& pixel_color : img) {
-        raytracer::write_color(output, pixel_color);
+        write_color(output, pixel_color);
     }
     std::clog << "\rImage saved to" << config_["output"]["filename"] << "        \n";
     output.close();
