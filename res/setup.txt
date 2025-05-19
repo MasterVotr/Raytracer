@@ -1,3 +1,6 @@
+    "renderer": {
+        "max_distance": 2000.0
+    },
     "scene": {
         "source_file": "res/CornellBox-Original.obj",
         "basepath": "res/",
@@ -38,6 +41,9 @@
         ]
     }
 
+    "renderer": {
+        "max_distance": 6.0
+    },
     "scene": {
         "source_file": "res/CornellBox-Sphere.obj",
         "basepath": "res/",
