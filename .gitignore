@@ -1,6 +1,6 @@
-raytracer
-raytracer.dSYM
-raytracer.dSYM/*
+raytracer.out
+raytracer.out.dSYM
+raytracer.out.dSYM/*
 output*.txt
 output*.ppm
 config.json
