@@ -8,6 +8,7 @@
         "max_depth": 1,
         "samples_per_triangle": 32,
         "render_type": "blinn_phong",
+        "max_distance": 2000.0,
         "shading_type": "flat",
         "cull_backfaces": true,
         "background_color": [
