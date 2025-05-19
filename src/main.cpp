@@ -181,13 +181,13 @@ color Renderer::ray_color(const Scene& scene, ray& r, unsigned int depth) {
     if (depth < max_depth_) {
         // Reflection
         if (!(material.specular == vec3(0.0))) {
-            ray reflection_ray = calculate_reflection_ray(r, ray_intersection_point, triangle.normal);
+            ray reflection_ray = calculate_reflection_ray(r, ray_intersection_point, normal);
             auto I_R = ray_color(scene, reflection_ray, depth + 1);
             final_color += I_R * material.specular;
         }
         // Refraction
         if (!(material.transmittance == vec3(0.0))) {
-            ray refraction_ray = calculate_refraction_ray(r, ray_intersection_point, triangle.normal, material.ior);
+            ray refraction_ray = calculate_refraction_ray(r, ray_intersection_point, normal, material.ior);
             if (!(refraction_ray.direction() == vec3(0.0f))) {
                 auto I_T = ray_color(scene, refraction_ray, depth + 1);
                 final_color += I_T * material.transmittance;
