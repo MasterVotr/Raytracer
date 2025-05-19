@@ -67,7 +67,9 @@ void Renderer::RenderScene(const Scene& scene) {
     std::vector<ray> rays = generate_rays(scene);
 
     for (size_t r = 0; r < rays.size(); r++) {
-        std::clog << "\rRendering scene... " << (r * 1.0 / rays.size()) * 100.0 << "%     " << std::flush;
+        if (r % 100 == 0) {
+            std::clog << "\rRendering scene... " << (r * 1.0 / rays.size()) * 100.0 << "%     " << std::flush;
+        }
 
         color pixel_color = ray_color(scene, rays[r]);
         for (size_t i = 0; i < scene.GetCamera().samples_per_pixel - 1; i++) {
