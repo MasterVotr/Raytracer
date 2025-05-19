@@ -6,16 +6,16 @@ CFLAGSDEBUG = -std=c++17 -Wall -Wextra -Wpedantic -fsanitize=address -g
 
 .PHONY: run clean raytracer
 
-raytracer: raytracer src/main.cpp
-	$(CXX) $(CFLAGS) src/main.cpp -o raytracer
+raytracer: src/main.cpp
+	$(CXX) $(CFLAGS) src/main.cpp -o raytracer.out
 
-raytracer_debug: raytracer src/main.cpp
-	$(CXX) $(CFLAGSDEBUG) src/main.cpp -o raytracer
+raytracer_debug: src/main.cpp
+	$(CXX) $(CFLAGSDEBUG) src/main.cpp -o raytracer.out
 
 run: raytracer
-	./raytracer
+	./raytracer.out config.json
 
 clean:
-	@rm -rf raytracer
-	@rm -rf raytracer.dSYM
+	@rm -rf raytracer.out
+	@rm -rf raytracer.out.dSYM
 	@rm -rf output.ppm
