@@ -26,6 +26,7 @@ class Renderer {
     unsigned int samples_per_triangle_;
     color background_color_;
     RENDER_TYPE render_type_;
+    float max_distance_;
     SHADING_TYPE shading_type_;
     bool cull_backfaces_;
 
@@ -127,7 +128,7 @@ color Renderer::ray_color(const Scene& scene, ray& r, unsigned int depth) {
     // Ray intersection with the scene
     color final_color(0.0);
     auto t_pixel = infinity;
-    auto t_max = 2000.0;
+    auto t_max = max_distance_;
     auto triangle_hit = -1;
     for (size_t i = 0; i < scene.GetTriangles().size(); i++) {
         auto t = collision_ray_triangle(scene.GetTriangles()[i], r);
@@ -391,6 +392,7 @@ void Renderer::config_setup(const nlohmann::json& config) {
     max_depth_ = config.at("max_depth");
     samples_per_triangle_ = config.at("samples_per_triangle");
     cull_backfaces_ = config.at("cull_backfaces");
+    max_distance_ = config.at("max_distance");
 
     // Setup render type
     if (config.at("render_type") == "distance") {
