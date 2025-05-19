@@ -13,14 +13,14 @@ class Scene {
    public:
     Scene(const nlohmann::json& config) : config_(config) { config_setup(config_.at("scene")); }
 
-    void AddTriangle(const Triangle& t) { triangles_.emplace_back(t); }
-    const std::vector<Triangle>& GetTriangles() const { return triangles_; }
-    void AddMaterial(const Material& m) { materials_.emplace_back(m); }
-    const std::vector<Material>& GetMaterials() const { return materials_; }
-    void AddLight(const Triangle& t) { lights_.emplace_back(t); }
-    const std::vector<Triangle>& GetLights() const { return lights_; }
-    void SetCamera(const Camera& camera) { camera_ = camera; }
-    const Camera& GetCamera() const { return camera_; }
+    inline void AddTriangle(const Triangle& t) { triangles_.emplace_back(t); }
+    inline const std::vector<Triangle>& GetTriangles() const { return triangles_; }
+    inline void AddMaterial(const Material& m) { materials_.emplace_back(m); }
+    inline const std::vector<Material>& GetMaterials() const { return materials_; }
+    inline void AddLight(const Triangle& t) { lights_.emplace_back(t); }
+    inline const std::vector<Triangle>& GetLights() const { return lights_; }
+    inline void SetCamera(const Camera& camera) { camera_ = camera; }
+    inline const Camera& GetCamera() const { return camera_; }
 
    private:
     struct PointLight {

@@ -9,11 +9,10 @@ class ray {
     ray() {}
     ray(point3 orig, vec3 dir, float t = -1.0) : orig_(orig), dir_(dir), t_(t) {}
 
-    const point3& origin() const { return orig_; }
-    const vec3& direction() const { return dir_; }
-    float& t_distance() { return t_; }
-
-    point3 at(float t) const { return orig_ + dir_ * t; }
+    inline const point3& origin() const { return orig_; }
+    inline const vec3& direction() const { return dir_; }
+    inline float& t_distance() { return t_; }
+    inline point3 at(float t) const { return orig_ + dir_ * t; }
 
    private:
     point3 orig_;
