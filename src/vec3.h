@@ -33,6 +33,16 @@ class vec3 {
     void operator*=(float a) { x *= a, y *= a, z *= a; }
     void operator*=(const vec3& v) { x *= v.x, y *= v.y, z *= v.z; }
     bool operator==(const vec3& v) const { return (fabs(x - v.x) < epsilon && fabs(y - v.y) < epsilon && fabs(z - v.z) < epsilon); }
+    float operator[](int i) const {
+        if (i == 0)
+            return x;
+        else if (i == 1)
+            return y;
+        else if (i == 2)
+            return z;
+        else
+            throw std::out_of_range("Index out of range");
+    }
     float length() const { return sqrt(x * x + y * y + z * z); }
     float average() { return (x + y + z) / 3; }
     vec3 normalize() const { return (*this) / length(); }
