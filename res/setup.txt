@@ -1,4 +1,4 @@
-"scene": {
+    "scene": {
         "source_file": "res/CornellBox-Original.obj",
         "basepath": "res/",
         "camera": {
@@ -60,20 +60,7 @@
             "fov": 0.6,
             "width": 800,
             "height": 800,
-            "samples_per_pixel": 10
+            "samples_per_pixel": 1
         },
-        "point_lights": [
-            {
-                "pos": [
-                    275.0,
-                    490.0,
-                    275.0
-                ],
-                "color": [
-                    1.0,
-                    1.0,
-                    1.0
-                ]
-            }
-        ]
+        "point_lights": []
     }
