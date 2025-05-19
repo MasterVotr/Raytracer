@@ -27,7 +27,7 @@ class Renderer {
     color background_color_;
     RENDER_TYPE render_type_;
     SHADING_TYPE shading_type_;
-    bool cull_backfaces_ = true;
+    bool cull_backfaces_;
 
    private:
     std::vector<ray> generate_rays(const Scene& scene);
