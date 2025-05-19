@@ -77,6 +77,7 @@ void Renderer::RenderScene(const Scene& scene) {
             pixel_color += ray_color(scene, jitter_ray);
         }
         pixel_color = pixel_color / (scene.GetCamera().samples_per_pixel);
+        pixel_color = clamp_color(pixel_color);
         img.emplace_back(pixel_color);
     }
     std::clog << "\rRendering done               " << std::endl;
@@ -170,9 +171,7 @@ color Renderer::ray_color(const Scene& scene, ray& r, unsigned int depth) {
             exit(1);
     }
 
-    final_color.x = clamp(final_color.x, 0.0f, 1.0f);
-    final_color.y = clamp(final_color.y, 0.0f, 1.0f);
-    final_color.z = clamp(final_color.z, 0.0f, 1.0f);
+    final_color = clamp_color(final_color);
 
     if (final_color == vec3(1.0)) {
         return final_color;  // Early exit if color is white
