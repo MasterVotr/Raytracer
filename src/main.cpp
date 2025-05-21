@@ -532,12 +532,14 @@ float Renderer::collision_ray_triangle(const Triangle& triangle, ray& ray) {
 
     // Cull backfaces if enabled
     if (cull_backfaces_) {
-        if (d < epsilon) {    // If determinant is near zero, the ray is parallel to the triangle
+        if (d < epsilon) {  // If determinant is near zero, the ray is parallel to the triangle
+            ray.t_distance() = infinity;
             return infinity;  // No intersection
         }
     } else {
         if (fabs(d) < epsilon) {  // For non-culling, check if determinant is close to zero
-            return infinity;      // No intersection
+            ray.t_distance() = infinity;
+            return infinity;  // No intersection
         }
     }
 
@@ -558,6 +560,7 @@ float Renderer::collision_ray_triangle(const Triangle& triangle, ray& ray) {
     vec3 r = cross(q, e1);  // Cross product of q and edge 1
     float v = d_inv * dot(r, s);
     if (v < 0.0 || (u + v) > 1.0) {  // If v is outside the range [0, 1] or u + v > 1, the intersection is outside the triangle
+        ray.t_distance() = infinity;
         return infinity;
     }
 
