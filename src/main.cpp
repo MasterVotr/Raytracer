@@ -626,17 +626,27 @@ void Renderer::config_setup(const nlohmann::json& config) {
         exit(1);
     }
 
+    // Setup data structure
+    if (config.at("data_structure") == "octree") {
+        data_structure_ = OCTREE;
+    } else if (config.at("data_structure") == "none") {
+        data_structure_ = NONE;
+    } else {
+        std::cerr << "Invalid data structure" << std::endl;
+        exit(1);
+    }
+
     std::clog << "\rRenderer configured     " << std::endl;
 }
 
 void Renderer::save_image_to_pmm(int img_width, int img_height, std::vector<color>& img) {
-    std::clog << "Saving image to output.pmm" << std::endl;
-    std::ofstream output(config_["output"]["filename"]);
+    std::clog << "Saving image..." << std::flush;
+    std::ofstream output(config_.at("output").at("filename"));
     output << "P3\n" << img_width << ' ' << img_height << "\n255\n";
     for (const auto& pixel_color : img) {
         write_color(output, pixel_color);
     }
-    std::clog << "\rImage saved to" << config_["output"]["filename"] << "        \n";
+    std::clog << "\rImage saved to" << config_.at("output").at("filename") << "        \n";
     output.close();
 }
 
