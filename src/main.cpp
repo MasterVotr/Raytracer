@@ -1,6 +1,7 @@
 #include "../include/json.hpp"
 #include "color.h"
 #include "obj_loader.h"
+#include "octree.h"
 #include "ray.h"
 #include "util.h"
 #include "vec3.h"
@@ -15,6 +16,7 @@ class Renderer {
    public:
     enum RENDER_TYPE { DISTANCE, DIFFUSION, PHONG, BLINN_PHONG };
     enum SHADING_TYPE { FLAT, SMOOTH };
+    enum DATA_STRUCTURE { NONE, OCTREE };
 
     inline Renderer(const nlohmann::json& config) : config_(config) { config_setup(config_["renderer"]); };
 
@@ -29,12 +31,22 @@ class Renderer {
     float max_distance_;
     SHADING_TYPE shading_type_;
     bool cull_backfaces_;
+    DATA_STRUCTURE data_structure_;
+    // size_t ray_trinagle_collision_count_;
+    // long long ray_trinagle_collision_duration_;
 
    private:
     std::vector<ray> generate_rays(const Scene& scene);
     color ray_color(const Scene& scene, ray& ray, unsigned int depth = 0);
+    color ray_color(const Scene& scene, Octree& octree, ray& ray, unsigned int depth = 0);
     color render_distance(float t_pixel, float t_max);
     color render_local_ilumination(const Scene& scene,
+                                   const Triangle& triangle,
+                                   const Material& material,
+                                   const point3& intersection_point,
+                                   const vec3& intersection_point_normal);
+    color render_local_ilumination(const Scene& scene,
+                                   Octree& octree,
                                    const Triangle& triangle,
                                    const Material& material,
                                    const point3& intersection_point,
@@ -54,6 +66,7 @@ class Renderer {
     ray calculate_reflection_ray(const ray& r, const point3& ray_intersection_point, const vec3& triangle_normal);
     ray calculate_refraction_ray(const ray& r, const point3& ray_intersection_point, const vec3& triangle_normal, float ior);
     bool is_shadowed(const Scene& scene, const point3& ray_intersection_point, const vec3& light_pos);
+    bool is_shadowed(Octree& octree, const point3& ray_intersection_point, const vec3& light_pos);
     float collision_ray_triangle(const Triangle& triangle, ray& ray);
 
     void config_setup(const nlohmann::json& config);
@@ -66,28 +79,63 @@ void Renderer::RenderScene(const Scene& scene) {
 
     auto start_time = std::chrono::high_resolution_clock::now();
     std::vector<ray> rays = generate_rays(scene);
+    // ray_trinagle_collision_count_ = 0;
+    // ray_trinagle_collision_duration_ = 0;
 
-    for (size_t r = 0; r < rays.size(); r++) {
-        if (r % 100 == 0) {
-            std::clog << "\rRendering scene... " << (r * 1.0 / rays.size()) * 100.0 << "%     " << std::flush;
-        }
+    if (data_structure_ == OCTREE) {
+        Octree octree(scene.GetTriangles(), config_);
+        octree.Build();
 
-        color pixel_color = ray_color(scene, rays[r]);
-        for (size_t i = 0; i < scene.GetCamera().samples_per_pixel - 1; i++) {
-            float x_jitter = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 0.001f;
-            float y_jitter = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 0.001f;
-            ray jitter_ray(rays[r].origin(), rays[r].direction() + vec3(x_jitter, y_jitter, 0.0f));
-            pixel_color += ray_color(scene, jitter_ray);
+        long long octree_search_time = 0;
+        long long native_search_time = 0;
+
+        for (size_t r = 0; r < rays.size(); r++) {
+            if (r % 100 == 0) {
+                std::clog << "\rRendering scene... " << (r * 1.0 / rays.size()) * 100.0 << "%     " << std::flush;
+            }
+
+            color pixel_color = ray_color(scene, octree, rays[r]);
+            for (size_t i = 0; i < scene.GetCamera().samples_per_pixel - 1; i++) {
+                float x_jitter = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 0.001f;
+                float y_jitter = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 0.001f;
+                ray jitter_ray(rays[r].origin(), rays[r].direction() + vec3(x_jitter, y_jitter, 0.0f));
+                pixel_color += ray_color(scene, octree, jitter_ray);
+            }
+            pixel_color = pixel_color / (scene.GetCamera().samples_per_pixel);
+            pixel_color = clamp_color(pixel_color);
+            img.emplace_back(pixel_color);
         }
-        pixel_color = pixel_color / (scene.GetCamera().samples_per_pixel);
-        pixel_color = clamp_color(pixel_color);
-        img.emplace_back(pixel_color);
+        std::clog << "\rRendering done               " << std::endl;
+
+        // octree.PrintStats();
+    } else {
+        for (size_t r = 0; r < rays.size(); r++) {
+            if (r % 100 == 0) {
+                std::clog << "\rRendering scene... " << (r * 1.0 / rays.size()) * 100.0 << "%     " << std::flush;
+            }
+
+            color pixel_color = ray_color(scene, rays[r]);
+            for (size_t i = 0; i < scene.GetCamera().samples_per_pixel - 1; i++) {
+                float x_jitter = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 0.001f;
+                float y_jitter = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 0.001f;
+                ray jitter_ray(rays[r].origin(), rays[r].direction() + vec3(x_jitter, y_jitter, 0.0f));
+                pixel_color += ray_color(scene, jitter_ray);
+            }
+            pixel_color = pixel_color / (scene.GetCamera().samples_per_pixel);
+            pixel_color = clamp_color(pixel_color);
+            img.emplace_back(pixel_color);
+        }
+        std::clog << "\rRendering done               " << std::endl;
     }
-    std::clog << "\rRendering done               " << std::endl;
 
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    std::clog << "Rendering time: " << duration / 1000.0 << " seconds" << std::endl;
+    std::clog << "Rendering time: " << duration / 1000.0 << " s" << std::endl;
+    // std::clog << "Ray-triangle collision count: " << ray_trinagle_collision_count_ << std::endl;
+    // std::clog << "Average ray-triangle collision count per ray: " << (float)ray_trinagle_collision_count_ / rays.size() << std::endl;
+    // std::clog << "Ray-triangle collision duration: " << ray_trinagle_collision_duration_ / 1000.0f / 1000.0f << " ms" << std::endl;
+    // std::clog << "Average ray-triangle collision duration per ray: " << (float)ray_trinagle_collision_duration_ / rays.size() / 1000.0f / 1000.0f
+    //           << " ms" << std::endl;
 
     save_image_to_pmm(scene.GetCamera().width, scene.GetCamera().height, img);
 }
@@ -201,6 +249,89 @@ color Renderer::ray_color(const Scene& scene, ray& r, unsigned int depth) {
     return final_color;
 }
 
+color Renderer::ray_color(const Scene& scene, Octree& octree, ray& r, unsigned int depth) {
+    // Ray intersection with the scene
+    color final_color(0.0);
+    auto t_pixel = infinity;
+    auto t_max = max_distance_;
+    auto triangle_hit = -1;
+    auto triangles = octree.Search(r);
+
+    // auto start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < triangles.size(); i++) {
+        auto t = collision_ray_triangle(triangles[i], r);
+        // miss or too close
+        if (t == infinity || t < epsilon) {
+            continue;
+        }
+        // closer hit
+        if (t < t_pixel) {
+            t_pixel = t;
+            triangle_hit = i;
+        }
+    }
+    // auto end = std::chrono::high_resolution_clock::now();
+    // ray_trinagle_collision_duration_ += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    // ray_trinagle_collision_count_ += triangles.size();
+
+    // No point intersection
+    if (t_pixel == infinity) {
+        return background_color_;
+    }
+
+    const auto& triangle = triangles[triangle_hit];
+    const auto& material = scene.GetMaterials()[triangle.material_id];
+    auto ray_intersection_point = r.origin() + r.direction() * t_pixel;
+    vec3 normal = triangle.normal;
+    if (shading_type_ == SMOOTH) {
+        normal = interpolate_normal_on_triangle(triangle, ray_intersection_point);
+    }
+    switch (render_type_) {
+        case DISTANCE: {
+            final_color += render_distance(t_pixel, t_max);
+            break;
+        }
+        case DIFFUSION: {
+            final_color += material.diffuse;
+            break;
+        }
+        case PHONG:
+        case BLINN_PHONG: {
+            final_color += render_local_ilumination(scene, octree, triangle, material, ray_intersection_point, normal);
+            break;
+        }
+        default:
+            std::cerr << "Invalid render type" << std::endl;
+            exit(1);
+    }
+
+    final_color = clamp_color(final_color);
+
+    if (final_color == vec3(1.0)) {
+        return final_color;  // Early exit if color is white
+    }
+
+    // Reflection and refraction if not already white
+    if (depth < max_depth_) {
+        // Reflection
+        if (!(material.specular == vec3(0.0))) {
+            ray reflection_ray = calculate_reflection_ray(r, ray_intersection_point, normal);
+            auto I_R = ray_color(scene, octree, reflection_ray, depth + 1);
+            final_color += I_R * material.specular;
+        }
+        // Refraction
+        if (!(material.transmittance == vec3(0.0))) {
+            ray refraction_ray = calculate_refraction_ray(r, ray_intersection_point, normal, material.ior);
+            if (!(refraction_ray.direction() == vec3(0.0f))) {
+                auto I_T = ray_color(scene, octree, refraction_ray, depth + 1);
+                final_color += I_T * material.transmittance;
+            }
+        }
+    }
+
+    return final_color;
+}
+
 color Renderer::render_distance(float t_pixel, float t_max) {
     float greyscale = 1.0f - (std::min(t_pixel, 1.5f * t_max) / (1.5f * t_max));
     return color(greyscale, greyscale, greyscale);
@@ -223,6 +354,53 @@ color Renderer::render_local_ilumination(const Scene& scene,
         for (size_t s = 0; s < samples_per_triangle_; s++) {
             auto p_l = rand_point_on_triangle(light);
             bool shadowed = is_shadowed(scene, intersection_point, p_l);
+            if (!shadowed) {
+                auto& n_l = light.normal;
+                auto d_l = (p_l - intersection_point).normalize();  // normalize
+                auto s = samples_per_triangle_;
+                auto d = (p_l - intersection_point).length();
+                auto w = (S_l * std::max(0.0f, dot(n_l, (-d_l)))) / (s * d * d + epsilon);
+                auto I_l = light_material.emission * w;
+                switch (render_type_) {
+                    case PHONG: {
+                        accumulated_color += render_phong(scene.GetCamera(), material, intersection_point, intersection_point_normal, p_l, I_l);
+                        break;
+                    }
+                    case BLINN_PHONG: {
+                        accumulated_color += render_blinn_phong(scene.GetCamera(), material, intersection_point, intersection_point_normal, p_l, I_l);
+                        break;
+                    }
+                    default: {
+                        std::cerr << "Invalid local ilumination render type" << std::endl;
+                        exit(1);
+                    }
+                }
+            }
+        }
+        final_color += accumulated_color;
+    }
+
+    return final_color;
+}
+
+color Renderer::render_local_ilumination(const Scene& scene,
+                                         Octree& octree,
+                                         const Triangle& triangle,
+                                         const Material& material,
+                                         const point3& intersection_point,
+                                         const vec3& intersection_point_normal) {
+    color final_color(0.0);
+    for (size_t l = 0; l < scene.GetLights().size(); l++) {
+        const auto& light = scene.GetLights()[l];
+        const auto& light_material = scene.GetMaterials()[light.material_id];
+        if (scene.GetLights()[l] == triangle) {
+            return light_material.emission;  // Early exit if the triangle is a light source
+        }
+        auto S_l = calculate_triangle_area(light);
+        color accumulated_color(0.0);
+        for (size_t s = 0; s < samples_per_triangle_; s++) {
+            auto p_l = rand_point_on_triangle(light);
+            bool shadowed = is_shadowed(octree, intersection_point, p_l);
             if (!shadowed) {
                 auto& n_l = light.normal;
                 auto d_l = (p_l - intersection_point).normalize();  // normalize
@@ -306,6 +484,33 @@ bool Renderer::is_shadowed(const Scene& scene, const point3& ray_intersection_po
             return true;  // Shadowed
         }
     }
+    return false;  // Not shadowed
+}
+
+bool Renderer::is_shadowed(Octree& octree, const point3& ray_intersection_point, const vec3& light_pos) {
+    auto dist_light = (light_pos - ray_intersection_point).length();
+    auto shadow_ray = ray(ray_intersection_point, (light_pos - ray_intersection_point).normalize());
+    float shadow_t;
+    auto triangles = octree.Search(shadow_ray);
+
+    // auto start = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < triangles.size(); i++) {
+        shadow_t = collision_ray_triangle(triangles[i], shadow_ray);
+        // miss
+        if (shadow_t == infinity || shadow_t < epsilon) {
+            continue;
+        }
+        // closer hit
+        if (shadow_t < dist_light) {
+            // auto end = std::chrono::high_resolution_clock::now();
+            // ray_trinagle_collision_duration_ += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+            // ray_trinagle_collision_count_ += i + 1;
+            return true;  // Shadowed
+        }
+    }
+    // auto end = std::chrono::high_resolution_clock::now();
+    // ray_trinagle_collision_duration_ += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    // ray_trinagle_collision_count_ += triangles.size();
     return false;  // Not shadowed
 }
 
