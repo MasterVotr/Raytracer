@@ -25,7 +25,7 @@ class vec3 {
 
     vec3 operator*(float a) const { return vec3(x * a, y * a, z * a); }
     vec3 operator*(const vec3 r) const { return vec3(x * r.x, y * r.y, z * r.z); }
-    vec3 operator/(const float r) const { return fabs(r) > epsilon ? vec3(x / r, y / r, z / r) : vec3(0, 0, 0); }
+    vec3 operator/(const float a) const { return fabs(a) > epsilon ? vec3(x / a, y / a, z / a) : vec3(0); }
     vec3 operator+(const vec3& v) const { return vec3(x + v.x, y + v.y, z + v.z); }
     vec3 operator-(const vec3& v) const { return vec3(x - v.x, y - v.y, z - v.z); }
     vec3 operator-() const { return vec3(-x, -y, -z); }
