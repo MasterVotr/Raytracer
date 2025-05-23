@@ -32,8 +32,8 @@ class Renderer {
     SHADING_TYPE shading_type_;
     bool cull_backfaces_;
     DATA_STRUCTURE data_structure_;
-    // size_t ray_trinagle_collision_count_;
-    // long long ray_trinagle_collision_duration_;
+    size_t ray_trinagle_collision_count_;
+    long long ray_trinagle_collision_duration_;
 
    private:
     std::vector<ray> generate_rays(const Scene& scene);
@@ -79,8 +79,8 @@ void Renderer::RenderScene(const Scene& scene) {
 
     auto start_time = std::chrono::high_resolution_clock::now();
     std::vector<ray> rays = generate_rays(scene);
-    // ray_trinagle_collision_count_ = 0;
-    // ray_trinagle_collision_duration_ = 0;
+    ray_trinagle_collision_count_ = 0;
+    ray_trinagle_collision_duration_ = 0;
 
     if (data_structure_ == OCTREE) {
         Octree octree(scene.GetTriangles(), config_);
@@ -107,7 +107,7 @@ void Renderer::RenderScene(const Scene& scene) {
         }
         std::clog << "\rRendering done               " << std::endl;
 
-        // octree.PrintStats();
+        octree.PrintStats();
     } else {
         for (size_t r = 0; r < rays.size(); r++) {
             if (r % 100 == 0) {
@@ -131,11 +131,11 @@ void Renderer::RenderScene(const Scene& scene) {
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
     std::clog << "Rendering time: " << duration / 1000.0 << " s" << std::endl;
-    // std::clog << "Ray-triangle collision count: " << ray_trinagle_collision_count_ << std::endl;
-    // std::clog << "Average ray-triangle collision count per ray: " << (float)ray_trinagle_collision_count_ / rays.size() << std::endl;
-    // std::clog << "Ray-triangle collision duration: " << ray_trinagle_collision_duration_ / 1000.0f / 1000.0f << " ms" << std::endl;
-    // std::clog << "Average ray-triangle collision duration per ray: " << (float)ray_trinagle_collision_duration_ / rays.size() / 1000.0f / 1000.0f
-    //           << " ms" << std::endl;
+    std::clog << "Ray-triangle collision count: " << ray_trinagle_collision_count_ << std::endl;
+    std::clog << "Average ray-triangle collision count per ray: " << (float)ray_trinagle_collision_count_ / rays.size() << std::endl;
+    std::clog << "Ray-triangle collision duration: " << ray_trinagle_collision_duration_ / 1000.0f / 1000.0f << " ms" << std::endl;
+    std::clog << "Average ray-triangle collision duration per ray: " << (float)ray_trinagle_collision_duration_ / rays.size() / 1000.0f / 1000.0f
+              << " ms" << std::endl;
 
     save_image_to_pmm(scene.GetCamera().width, scene.GetCamera().height, img);
 }
@@ -178,6 +178,8 @@ color Renderer::ray_color(const Scene& scene, ray& r, unsigned int depth) {
     auto t_pixel = infinity;
     auto t_max = max_distance_;
     auto triangle_hit = -1;
+
+    auto start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < scene.GetTriangles().size(); i++) {
         auto t = collision_ray_triangle(scene.GetTriangles()[i], r);
         // miss or too close
@@ -190,6 +192,9 @@ color Renderer::ray_color(const Scene& scene, ray& r, unsigned int depth) {
             triangle_hit = i;
         }
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    ray_trinagle_collision_duration_ += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    ray_trinagle_collision_count_ += scene.GetTriangles().size();
 
     // No point intersection
     if (t_pixel == infinity) {
@@ -257,7 +262,7 @@ color Renderer::ray_color(const Scene& scene, Octree& octree, ray& r, unsigned i
     auto triangle_hit = -1;
     auto triangles = octree.Search(r);
 
-    // auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < triangles.size(); i++) {
         auto t = collision_ray_triangle(triangles[i], r);
         // miss or too close
@@ -270,9 +275,9 @@ color Renderer::ray_color(const Scene& scene, Octree& octree, ray& r, unsigned i
             triangle_hit = i;
         }
     }
-    // auto end = std::chrono::high_resolution_clock::now();
-    // ray_trinagle_collision_duration_ += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-    // ray_trinagle_collision_count_ += triangles.size();
+    auto end = std::chrono::high_resolution_clock::now();
+    ray_trinagle_collision_duration_ += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    ray_trinagle_collision_count_ += triangles.size();
 
     // No point intersection
     if (t_pixel == infinity) {
@@ -473,6 +478,8 @@ bool Renderer::is_shadowed(const Scene& scene, const point3& ray_intersection_po
     auto dist_light = (light_pos - ray_intersection_point).length();
     auto shadow_ray = ray(ray_intersection_point, (light_pos - ray_intersection_point).normalize());
     float shadow_t;
+
+    auto start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < scene.GetTriangles().size(); i++) {
         shadow_t = collision_ray_triangle(scene.GetTriangles()[i], shadow_ray);
         // miss
@@ -481,9 +488,15 @@ bool Renderer::is_shadowed(const Scene& scene, const point3& ray_intersection_po
         }
         // closer hit
         if (shadow_t < dist_light) {
+            auto end = std::chrono::high_resolution_clock::now();
+            ray_trinagle_collision_duration_ += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+            ray_trinagle_collision_count_ += i + 1;
             return true;  // Shadowed
         }
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    ray_trinagle_collision_duration_ += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    ray_trinagle_collision_count_ += scene.GetTriangles().size();
     return false;  // Not shadowed
 }
 
@@ -493,7 +506,7 @@ bool Renderer::is_shadowed(Octree& octree, const point3& ray_intersection_point,
     float shadow_t;
     auto triangles = octree.Search(shadow_ray);
 
-    // auto start = std::chrono::high_resolution_clock::now();
+    auto start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < triangles.size(); i++) {
         shadow_t = collision_ray_triangle(triangles[i], shadow_ray);
         // miss
@@ -502,15 +515,15 @@ bool Renderer::is_shadowed(Octree& octree, const point3& ray_intersection_point,
         }
         // closer hit
         if (shadow_t < dist_light) {
-            // auto end = std::chrono::high_resolution_clock::now();
-            // ray_trinagle_collision_duration_ += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-            // ray_trinagle_collision_count_ += i + 1;
+            auto end = std::chrono::high_resolution_clock::now();
+            ray_trinagle_collision_duration_ += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+            ray_trinagle_collision_count_ += i + 1;
             return true;  // Shadowed
         }
     }
-    // auto end = std::chrono::high_resolution_clock::now();
-    // ray_trinagle_collision_duration_ += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-    // ray_trinagle_collision_count_ += triangles.size();
+    auto end = std::chrono::high_resolution_clock::now();
+    ray_trinagle_collision_duration_ += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+    ray_trinagle_collision_count_ += triangles.size();
     return false;  // Not shadowed
 }
 

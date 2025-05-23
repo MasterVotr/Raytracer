@@ -97,14 +97,16 @@ struct AABB {
 
 struct OctreeStats {
     size_t max_depth;
-    float mean_depth;
-    size_t max_triangles_in_leaf_nodes;
-    float mean_traiangles_in_leaf_nodes;
+    float avg_depth;
+    size_t triangles_in_leaf_nodes;
+    float avg_traiangles_in_leaf_nodes;
     size_t nodes_count;
     size_t leaf_nodes_count;
     size_t search_count;
+    size_t search_node_count;
     size_t search_return_count;
     long long search_time;
+    size_t search_leaves_visited;
 };
 
 class Octree {
@@ -121,7 +123,7 @@ class Octree {
         float aabb_epsilon = 1e-6f;
 
         std::clog << "Building octree..." << std::flush;
-        // auto start_time = std::chrono::high_resolution_clock::now();
+        auto start_time = std::chrono::high_resolution_clock::now();
 
         // Initialize the root node
         point3 min = triangles_[0].vertices[0].pos;
@@ -268,24 +270,26 @@ class Octree {
         }
 
         std::clog << "\rBuilding octree done               " << std::endl;
-        // auto end_time = std::chrono::high_resolution_clock::now();
-        // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-        // std::clog << "Octree building time: " << duration / 1000.0f << " s" << std::endl;
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+        std::clog << "Octree building time: " << duration / 1000.0f << " s" << std::endl;
     }
 
-    std::vector<Triangle> Search(const ray& r, bool first_hit = false) {
-        // search_count_++;
+    std::vector<Triangle> Search(const ray& r) {
+        search_count_++;
         std::vector<Triangle> result;
         std::queue<std::shared_ptr<OctreeNode>> q;
         q.push(root);
 
-        // auto start_time = std::chrono::high_resolution_clock::now();
+        auto start_time = std::chrono::high_resolution_clock::now();
 
         while (!q.empty()) {
             auto current_node = q.front();
             q.pop();
 
+            search_node_count_++;
             if (current_node->isLeaf) {
+                search_leaves_visited_++;
                 for (const auto& index : current_node->triangle_indices) {
                     result.emplace_back(triangles_[index]);
                 }
@@ -299,28 +303,30 @@ class Octree {
             }
         }
 
-        // auto end_time = std::chrono::high_resolution_clock::now();
-        // auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count();
-        // search_time_ += duration;
-        // search_return_count_ += result.size();
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count();
+        search_time_ += duration;
+        search_return_count_ += result.size();
 
         return result;
     }
 
-    // void PrintStats() const {
-    //     auto stats = calculate_stats();
-    //     std::clog << "Octree stats: " << std::endl;
-    //     std::clog << "  Max depth: " << stats.max_depth << std::endl;
-    //     std::clog << "  Nodes count: " << stats.nodes_count << std::endl;
-    //     std::clog << "  Leaf nodes count: " << stats.leaf_nodes_count << std::endl;
-    //     std::clog << "  Mean depth of leaf nodes: " << stats.mean_depth << std::endl;
-    //     std::clog << "  Max triangles in leaf nodes: " << stats.max_triangles_in_leaf_nodes << std::endl;
-    //     std::clog << "  Mean triangles in leaf nodes: " << stats.mean_traiangles_in_leaf_nodes << std::endl;
-    //     std::clog << "  Search count: " << stats.search_count << std::endl;
-    //     std::clog << "  Search time: " << stats.search_time / 1000000.0f << " ms" << std::endl;
-    //     std::clog << "  Search return count: " << stats.search_return_count << std::endl;
-    //     std::clog << "  Average search return count: " << (float)stats.search_return_count / stats.search_count << std::endl;
-    // }
+    void PrintStats() const {
+        auto stats = calculate_stats();
+        std::clog << "Octree stats: " << std::endl;
+        std::clog << "  Max depth: " << stats.max_depth << std::endl;
+        std::clog << "  Nodes count: " << stats.nodes_count << std::endl;
+        std::clog << "  Leaf nodes count: " << stats.leaf_nodes_count << std::endl;
+        std::clog << "  Average depth of leaf nodes: " << stats.avg_depth << std::endl;
+        std::clog << "  Max triangles in leaf nodes: " << stats.triangles_in_leaf_nodes << std::endl;
+        std::clog << "  Average triangles in leaf nodes: " << stats.avg_traiangles_in_leaf_nodes << std::endl;
+        std::clog << "  Search method call count: " << stats.search_count << std::endl;
+        std::clog << "  Search node count: " << stats.search_node_count << std::endl;
+        std::clog << "  Search time: " << stats.search_time / 1000000.0f << " ms" << std::endl;
+        std::clog << "  Search return count: " << stats.search_return_count << std::endl;
+        std::clog << "  Average search return count: " << (float)stats.search_return_count / stats.search_count << std::endl;
+        std::clog << "  Search leaves visited: " << stats.search_leaves_visited << std::endl;
+    }
 
    private:
     struct OctreeNode {
@@ -337,49 +343,53 @@ class Octree {
     std::shared_ptr<OctreeNode> root;
     const std::vector<Triangle>& triangles_;
     size_t search_count_ = 0;
+    size_t search_node_count_ = 0;
     float search_time_ = 0;
     size_t search_return_count_ = 0;
+    size_t search_leaves_visited_ = 0;
 
    private:
-    // OctreeStats calculate_stats() const {
-    //     OctreeStats stats;
-    //     stats.max_depth = 0;
-    //     int total_leaf_depth = 0;
-    //     stats.max_triangles_in_leaf_nodes = 0;
-    //     int total_triangles_in_leaf_nodes = 0;
-    //     stats.nodes_count = 0;
-    //     stats.leaf_nodes_count = 0;
+    OctreeStats calculate_stats() const {
+        OctreeStats stats;
+        stats.max_depth = 0;
+        int total_leaf_depth = 0;
+        stats.triangles_in_leaf_nodes = 0;
+        int total_triangles_in_leaf_nodes = 0;
+        stats.nodes_count = 0;
+        stats.leaf_nodes_count = 0;
 
-    //     std::queue<std::shared_ptr<OctreeNode>> q;
-    //     q.push(root);
-    //     while (!q.empty()) {
-    //         auto current_node = q.front();
-    //         q.pop();
-    //         stats.nodes_count++;
-    //         if (current_node->isLeaf) {
-    //             continue;
-    //         }
-    //         for (const auto& octane : current_node->octanes) {
-    //             if (octane) {
-    //                 if (octane->isLeaf) {
-    //                     stats.leaf_nodes_count++;
-    //                     stats.max_depth = std::max(stats.max_depth, octane->depth);
-    //                     stats.max_triangles_in_leaf_nodes = std::max(stats.max_triangles_in_leaf_nodes, octane->triangle_indices.size());
-    //                     total_leaf_depth += octane->depth;
-    //                     total_triangles_in_leaf_nodes += octane->triangle_indices.size();
-    //                 }
-    //                 q.push(octane);
-    //             }
-    //         }
-    //     }
-    //     stats.mean_depth = (float)total_leaf_depth / stats.leaf_nodes_count;
-    //     stats.mean_traiangles_in_leaf_nodes = (float)total_triangles_in_leaf_nodes / stats.leaf_nodes_count;
-    //     stats.search_count = search_count_;
-    //     stats.search_time = search_time_;
-    //     stats.search_return_count = search_return_count_;
+        std::queue<std::shared_ptr<OctreeNode>> q;
+        q.push(root);
+        while (!q.empty()) {
+            auto current_node = q.front();
+            q.pop();
+            stats.nodes_count++;
+            if (current_node->isLeaf) {
+                continue;
+            }
+            for (const auto& octane : current_node->octanes) {
+                if (octane) {
+                    if (octane->isLeaf) {
+                        stats.leaf_nodes_count++;
+                        stats.max_depth = std::max(stats.max_depth, octane->depth);
+                        stats.triangles_in_leaf_nodes = std::max(stats.triangles_in_leaf_nodes, octane->triangle_indices.size());
+                        total_leaf_depth += octane->depth;
+                        total_triangles_in_leaf_nodes += octane->triangle_indices.size();
+                    }
+                    q.push(octane);
+                }
+            }
+        }
+        stats.avg_depth = (float)total_leaf_depth / stats.leaf_nodes_count;
+        stats.avg_traiangles_in_leaf_nodes = (float)total_triangles_in_leaf_nodes / stats.leaf_nodes_count;
+        stats.search_count = search_count_;
+        stats.search_node_count = search_node_count_;
+        stats.search_time = search_time_;
+        stats.search_return_count = search_return_count_;
+        stats.search_leaves_visited = search_leaves_visited_;
 
-    //     return stats;
-    // }
+        return stats;
+    }
     void config_setup(const nlohmann::json& config) {
         std::clog << "Configuring octree..." << std::flush;
 
