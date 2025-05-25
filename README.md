@@ -16,10 +16,13 @@ Raytracer project from the subject PG1 at CTU Prague 2024/25.
 
 This project is a raytracer developed as part of the PG1 course at CTU Prague for the academic year 2024/25. It demonstrates fundamental computer graphics concepts such as ray tracing, shading, and rendering. It also demonstrates the value of acceleration data structures when it comes to optimizing render time.
 
+The full report in Czech can be found [here](report/report.pdf).
+
 ### Structure
 - `build/` - created when compiling, holds the compiled `.o` object files
 - `include/` - external header files
 - `out/` - sample renders + progress of my implementation
+- `report/` - report in Czech and LaTeX files I generated it from
 - `res/` - sample scenes
 - `src/` - structured source code
 - `default_config.json` - default render configuration showcasing the config structure
