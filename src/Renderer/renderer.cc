@@ -312,17 +312,17 @@ bool Renderer::is_shadowed(const std::unique_ptr<Ads>& ads, const Point3& ray_in
     return false;  // Not shadowed
 }
 
-Ray Renderer::calculate_reflection_ray(const Ray& r, const Point3& ray_intersection_point, const Vec3& triangle_normal) const {
+Ray Renderer::calculate_reflection_ray(const Ray& r, const Point3& ray_intersection_point, const Vec3& normal) const {
     Vec3 d_v = -r.direction();
-    auto& d_n = triangle_normal;
+    auto& d_n = normal;
     auto d_r = d_n * 2.0 * dot(d_n, d_v) - d_v;
     Ray reflection_ray = Ray(ray_intersection_point, d_r.normalize());
     return reflection_ray;
 }
 
-Ray Renderer::calculate_refraction_ray(const Ray& r, const Point3& ray_intersection_point, const Vec3& triangle_normal, float ior) const {
+Ray Renderer::calculate_refraction_ray(const Ray& r, const Point3& ray_intersection_point, const Vec3& normal, float ior) const {
     Vec3 d_v = -r.direction();  // Inverted direction
-    auto& d_n = triangle_normal;
+    auto& d_n = normal;
     float n1 = 1.0;  // Air
     float n2 = ior;
     float n = n1 / n2;
