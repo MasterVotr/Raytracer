@@ -30,6 +30,7 @@ This project is a raytracer developed as part of the PG1 course at CTU Prague fo
 - [nlohmann json](https://github.com/nlohmann/json) - for handling json configuration
 
 ## Features
+- The raytracer takes in a configuration file and render the given scene into a `.ppm` image.
 
 ### Raytracing
 - Basic ray tracing algorithm (for triangles).
@@ -80,14 +81,15 @@ This project is a raytracer developed as part of the PG1 course at CTU Prague fo
     ```
 
 ## Examples
-- Example images and scene files can be found in the `out/` and `res/` directories.
+- Example images and scene files can be found in the `out/` and `res/` directories in `.ppm` format.
+- I have converted some to `.png`:
 
-![box_distance](/out/box/01_render_distance.ppm)
-![box_diffusion](/out/box/02_render_diffusion.ppm)
-![box_blinn-phong_shadows](/out/box/04_render_blinn-phong_shadows.ppm)
-![box_area_lights](/out/box/05_render_area_lights.ppm)
-![box_reflection_refraction](/out/box/07_render_reflection_refraction.ppm)
-![sphere_reflection_refraction_walls](out/sphere/07_sphere_render_reflection_refraction_walls.ppm)
+![box_distance](/readme_source/01_render_distance.png)
+![box_diffusion](/readme_source/02_render_diffusion.png)
+![box_blinn-phong_shadows](/readme_source/04_render_blinn-phong_shadows.png)
+![box_area_lights](/readme_source/05_render_area_lights.png)
+![box_reflection_refraction](/readme_source/07_render_reflection_refraction.png)
+![sphere_reflection_refraction_walls](readme_source/07_sphere_render_reflection_refraction_walls.png)
 
 ## Possible extensions
 - It is possible to implement your own acceleration data structure.
