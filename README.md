@@ -39,8 +39,8 @@ This project is a raytracer developed as part of the PG1 course at CTU Prague fo
 - Render types:
     - distance - based on the distance from the camera (aka depth),
     - diffusion - only taking the diffusion value of the material,
-    - [phong lighting](https://en.wikipedia.org/wiki/Phong_reflection_model),
-    - [blinn-phong lighting](https://en.wikipedia.org/wiki/Blinn%E2%80%93Phong_reflection_model).
+    - [Phong lighting model](https://en.wikipedia.org/wiki/Phong_reflection_model),
+    - [Blinn-Phong lighting mode](https://en.wikipedia.org/wiki/Blinn%E2%80%93Phong_reflection_model).
 - Shading types:
     - flat shading - triangle normal is used to compute the final color value,
     - smooth shading - uses the [Phong shading model](https://en.wikipedia.org/wiki/Phong_shading) to interpolate the normal of the intersection point from the normals of the vertices of the triangle hit (only works if the model has vertex normals).
