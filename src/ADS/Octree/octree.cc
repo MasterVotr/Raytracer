@@ -217,7 +217,7 @@ void Octree::PrintStats(std::ostream& os) const {
     os << "  Average triangles in leaf nodes: " << stats.avg_traiangles_in_leaf_nodes << "\n";
     os << "  Search method call count: " << stats.search_count << "\n";
     os << "  Search node count: " << stats.search_node_count << "\n";
-    os << "  Search time: " << stats.search_time / 1000000.0f << " ms" << "\n";
+    os << "  Search time: " << stats.search_time / 1000000000.0f << " s" << "\n";
     os << "  Search return count: " << stats.search_return_count << "\n";
     os << "  Average search return count: " << (float)stats.search_return_count / stats.search_count << "\n";
     os << "  Search leaves visited: " << stats.search_leaves_visited << "\n";

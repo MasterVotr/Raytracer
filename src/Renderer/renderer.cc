@@ -59,7 +59,7 @@ void Renderer::RenderScene(const Scene& scene) const {
     std::clog << "Rendering time: " << duration / 1000.0 << " s" << std::endl;
     std::clog << "Ray-triangle collision count: " << ray_trinagle_collision_count_ << std::endl;
     std::clog << "Average ray-triangle collision count per ray: " << (float)ray_trinagle_collision_count_ / rays.size() << std::endl;
-    std::clog << "Ray-triangle collision duration: " << ray_trinagle_collision_duration_ / 1000.0f / 1000.0f << " ms" << std::endl;
+    std::clog << "Ray-triangle collision duration: " << ray_trinagle_collision_duration_ / 1000000000.0f << " s" << std::endl;
     std::clog << "Average ray-triangle collision duration per ray: " << (float)ray_trinagle_collision_duration_ / rays.size() / 1000.0f / 1000.0f
               << " ms" << std::endl;
 
