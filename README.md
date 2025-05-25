@@ -92,6 +92,8 @@ This project is a raytracer developed as part of the PG1 course at CTU Prague fo
 ![sphere_reflection_refraction_walls](readme_source/07_sphere_render_reflection_refraction_walls.png)
 
 ## Possible extensions
+
+### New ADS
 - It is possible to implement your own acceleration data structure.
 - Create it in the `ADS` directory.
 - Extend the `Ads` abstract class.
@@ -100,3 +102,7 @@ This project is a raytracer developed as part of the PG1 course at CTU Prague fo
     - `ACCELERATION_DATA_STRUCTURE` enum - to represent the ADS,
     - `setup_config()` function - add the option,
     - `setup_ads` function - creation of the new ADS.
+
+### Paralelization
+- It would greatly speed up the rendering time if the rendering work divided among multiple threads.
+- There is potential for CPU and GPU paralelization.
