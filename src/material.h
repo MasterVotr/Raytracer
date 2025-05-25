@@ -1,15 +1,15 @@
 #pragma once
 
-#include "vec3.h"
+#include "src/vec3.h"
 
 namespace raytracer {
 
 struct Material {
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
-    vec3 transmittance;
-    vec3 emission;
+    Vec3 ambient;
+    Vec3 diffuse;
+    Vec3 specular;
+    Vec3 transmittance;
+    Vec3 emission;
     float shininess;
     float ior;
     float dissolve;

@@ -1,30 +1,37 @@
 {
     "seed": 42,
-    "triangulate": true,
-    "output": {
-        "filename": "output.ppm"
+    "obj_loader": {
+        "triangulate": true,
+        "basepath": "res/"
     },
     "renderer": {
-        "max_depth": 1,
+        "max_depth": 10,
         "samples_per_triangle": 32,
         "render_type": "blinn_phong",
-        "max_distance": 2000.0,
-        "shading_type": "flat",
+        "max_distance": 6.0,
+        "shading_type": "smooth",
         "cull_backfaces": true,
         "background_color": [
-            0.1,
-            0.1,
-            0.1
-        ]
+            0.01,
+            0.01,
+            0.01
+        ],
+        "acceleratied_data_structure": {
+            "name": "octree",
+            "max_triangles_per_BB": 16,
+            "max_depth": 10
+        },
+        "output": {
+            "filename": "output.ppm"
+        }
     },
     "scene": {
-        "source_file": "res/CornellBox-Original.obj",
-        "basepath": "res/",
+        "source_file": "CornellBox-Sphere.obj",
         "camera": {
             "pos": [
-                278.0,
-                273.0,
-                -1000.0
+                0.0,
+                1.0,
+                4.42
             ],
             "up": [
                 0.0,
@@ -34,26 +41,13 @@
             "dir": [
                 0.0,
                 0.0,
-                1.0
+                -1.0
             ],
             "fov": 0.6,
             "width": 800,
             "height": 800,
             "samples_per_pixel": 1
         },
-        "point_lights": [
-            {
-                "pos": [
-                    275.0,
-                    490.0,
-                    275.0
-                ],
-                "color": [
-                    1.0,
-                    1.0,
-                    1.0
-                ]
-            }
-        ]
+        "point_lights": []
     }
 }

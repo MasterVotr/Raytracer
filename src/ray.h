@@ -1,22 +1,22 @@
 #pragma once
 
-#include "vec3.h"
+#include "src/vec3.h"
 
 namespace raytracer {
 
-class ray {
+class Ray {
    public:
-    ray() {}
-    ray(point3 orig, vec3 dir, float t = -1.0) : orig_(orig), dir_(dir), t_(t) {}
+    Ray() {}
+    Ray(Point3 orig, Vec3 dir, float t = -1.0) : orig_(orig), dir_(dir), t_(t) {}
 
-    inline const point3& origin() const { return orig_; }
-    inline const vec3& direction() const { return dir_; }
+    inline const Point3& origin() const { return orig_; }
+    inline const Vec3& direction() const { return dir_; }
     inline float& t_distance() { return t_; }
-    inline point3 at(float t) const { return orig_ + dir_ * t; }
+    inline Point3 at(float t) const { return orig_ + dir_ * t; }
 
    private:
-    point3 orig_;
-    vec3 dir_;
+    Point3 orig_;
+    Vec3 dir_;
     float t_;  // t when hit
 };
 

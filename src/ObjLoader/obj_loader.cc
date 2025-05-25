@@ -1,19 +1,22 @@
-#pragma once
-
+#include "src/ObjLoader/obj_loader.h"
 #define TINYOBJLOADER_IMPLEMENTATION
-#include "../include/json.hpp"
-#include "../include/tiny_obj_loader.h"
-#include "scene.h"
 
 #include <cassert>
 #include <exception>
 #include <iostream>
 
+#include "include/json.hpp"
+#include "include/tiny_obj_loader.h"
+
+#include "src/material.h"
+#include "src/scene.h"
+#include "src/triangle.h"
+
 namespace raytracer {
 
-static void PrintInfo(const tinyobj::attrib_t& attrib,
-                      const std::vector<tinyobj::shape_t>& shapes,
-                      const std::vector<tinyobj::material_t>& materials) {
+namespace {
+
+void PrintInfo(const tinyobj::attrib_t& attrib, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials) {
     std::cout << "# of vertices  : " << (attrib.vertices.size() / 3) << std::endl;
     std::cout << "# of normals   : " << (attrib.normals.size() / 3) << std::endl;
     std::cout << "# of texcoords : " << (attrib.texcoords.size() / 2) << std::endl;
@@ -122,10 +125,13 @@ static void PrintInfo(const tinyobj::attrib_t& attrib,
     }
 }
 
-static Scene LoadScene(const nlohmann::json& config, bool triangulate = true) {
-    std::string filename = config.at("scene").at("source_file");
-    std::string basepath = config.at("scene").at("basepath");
-    Scene scene(config);
+}  // namespace
+
+Scene LoadScene(const nlohmann::json& loader_config, const nlohmann::json& scene_config) {
+    std::string basepath = loader_config.at("basepath");
+    std::string filename = basepath + std::string(scene_config.at("source_file"));
+    bool triangulate = loader_config.at("triangulate");
+    Scene scene(scene_config);
     std::clog << "Loading " << filename << std::flush;
 
     tinyobj::attrib_t attrib;
@@ -150,7 +156,7 @@ static Scene LoadScene(const nlohmann::json& config, bool triangulate = true) {
     }
     std::clog << "\rLoading " << filename << " done." << std::endl;
 
-    // PrintInfo(attrib, shapes, materials);
+    // obj_loader_internal::PrintInfo(attrib, shapes, materials);
 
     if (attrib.normals.size() == 0) {
         std::cerr << "No normals found in the model, only flat shading available" << std::endl;
@@ -166,22 +172,22 @@ static Scene LoadScene(const nlohmann::json& config, bool triangulate = true) {
                 tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
                 auto vidx = idx.vertex_index;
                 triangle.vertices[v].pos =
-                    vec3(static_cast<const float>(attrib.vertices[3 * vidx + 0]), static_cast<const float>(attrib.vertices[3 * vidx + 1]),
+                    Vec3(static_cast<const float>(attrib.vertices[3 * vidx + 0]), static_cast<const float>(attrib.vertices[3 * vidx + 1]),
                          static_cast<const float>(attrib.vertices[3 * vidx + 2]));
                 auto nidx = idx.normal_index;
                 if (nidx >= 0) {
                     triangle.vertices[v].norm =
-                        vec3(static_cast<const float>(attrib.normals[3 * nidx + 0]), static_cast<const float>(attrib.normals[3 * nidx + 1]),
+                        Vec3(static_cast<const float>(attrib.normals[3 * nidx + 0]), static_cast<const float>(attrib.normals[3 * nidx + 1]),
                              static_cast<const float>(attrib.normals[3 * nidx + 2]));
                 }
             }
             triangle.material_id = shapes[i].mesh.material_ids[f];
             triangle.normal = calculate_triangle_normal(triangle);
-            scene.AddTriangle(triangle);
+            scene.AddTriangle(std::make_shared<const Triangle>(triangle));
             // Lights
             if (materials[triangle.material_id].emission[0] != 0.0 || materials[triangle.material_id].emission[1] != 0.0 ||
                 materials[triangle.material_id].emission[2] != 0.0) {
-                scene.AddLight(triangle);
+                scene.AddLight(std::make_shared<const Triangle>(triangle));
             }
             index_offset += fnum;
         }
@@ -190,11 +196,11 @@ static Scene LoadScene(const nlohmann::json& config, bool triangulate = true) {
     std::clog << "\rTranslating materials to structures..." << std::flush;
     for (size_t i = 0; i < materials.size(); i++) {
         Material material;
-        material.ambient = vec3(materials[i].ambient[0], materials[i].ambient[1], materials[i].ambient[2]);
-        material.diffuse = vec3(materials[i].diffuse[0], materials[i].diffuse[1], materials[i].diffuse[2]);
-        material.specular = vec3(materials[i].specular[0], materials[i].specular[1], materials[i].specular[2]);
-        material.transmittance = vec3(materials[i].transmittance[0], materials[i].transmittance[1], materials[i].transmittance[2]);
-        material.emission = vec3(materials[i].emission[0], materials[i].emission[1], materials[i].emission[2]);
+        material.ambient = Vec3(materials[i].ambient[0], materials[i].ambient[1], materials[i].ambient[2]);
+        material.diffuse = Vec3(materials[i].diffuse[0], materials[i].diffuse[1], materials[i].diffuse[2]);
+        material.specular = Vec3(materials[i].specular[0], materials[i].specular[1], materials[i].specular[2]);
+        material.transmittance = Vec3(materials[i].transmittance[0], materials[i].transmittance[1], materials[i].transmittance[2]);
+        material.emission = Vec3(materials[i].emission[0], materials[i].emission[1], materials[i].emission[2]);
         material.shininess = materials[i].shininess;
         material.ior = materials[i].ior;
         material.dissolve = materials[i].dissolve;
