@@ -1,13 +1,13 @@
 #pragma once
 
-#include "util.h"
-#include "vec3.h"
+#include "src/util.h"
+#include "src/vec3.h"
 
 namespace raytracer {
 
 struct Vertex {
-    point3 pos;
-    vec3 norm;
+    Point3 pos;
+    Vec3 norm;
 
     bool operator==(const Vertex& other) const { return pos == other.pos && norm == other.norm; }
 };

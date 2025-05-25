@@ -1,16 +1,16 @@
 #pragma once
 
-#include "vec3.h"
-#include "vertex.h"
-
 #include <array>
+
+#include "src/vec3.h"
+#include "src/vertex.h"
 
 namespace raytracer {
 
 struct Triangle {
     Vertex vertices[3];
     size_t material_id;
-    vec3 normal;
+    Vec3 normal;
 
     bool operator==(const Triangle& other) const {
         return (vertices[0] == other.vertices[0] && vertices[1] == other.vertices[1] && vertices[2] == other.vertices[2]) ||
@@ -25,21 +25,21 @@ inline std::ostream& operator<<(std::ostream& os, Triangle triangle) {
     return os;
 }
 
-vec3 calculate_triangle_normal(const Triangle& t) {
-    vec3 u = t.vertices[1].pos - t.vertices[0].pos;
-    vec3 v = t.vertices[2].pos - t.vertices[1].pos;
+inline Vec3 calculate_triangle_normal(const Triangle& t) {
+    Vec3 u = t.vertices[1].pos - t.vertices[0].pos;
+    Vec3 v = t.vertices[2].pos - t.vertices[1].pos;
     return cross(u, v).normalize();
 }
 
-float calculate_triangle_area(const Triangle& t) {
-    vec3 u = t.vertices[1].pos - t.vertices[0].pos;
-    vec3 v = t.vertices[2].pos - t.vertices[1].pos;
-    vec3 c = cross(u, v);
+inline float calculate_triangle_area(const Triangle& t) {
+    Vec3 u = t.vertices[1].pos - t.vertices[0].pos;
+    Vec3 v = t.vertices[2].pos - t.vertices[1].pos;
+    Vec3 c = cross(u, v);
     float c_magnitude = c.length();
     return 0.5 * c_magnitude;
 }
 
-vec3 rand_point_on_triangle(const Triangle& t) {
+inline Vec3 rand_point_on_triangle(const Triangle& t) {
     auto r1 = (float)rand() / (RAND_MAX);
     auto r2 = (float)rand() / (RAND_MAX);
     auto u = (r1 + r2 > 1) ? 1 - r1 : r1;
@@ -48,14 +48,14 @@ vec3 rand_point_on_triangle(const Triangle& t) {
     const auto& b = t.vertices[1].pos;
     const auto& c = t.vertices[2].pos;
 
-    return vec3(a + (b - a) * u + (c - a) * v);
+    return Vec3(a + (b - a) * u + (c - a) * v);
 }
 
-vec3 interpolate_normal_on_triangle(const Triangle& t, const vec3& intersection_point) {
+inline Vec3 interpolate_normal_on_triangle(const Triangle& t, const Vec3& intersection_point) {
     // Compute edges
-    vec3 v0 = t.vertices[1].pos - t.vertices[0].pos;
-    vec3 v1 = t.vertices[2].pos - t.vertices[0].pos;
-    vec3 v2 = intersection_point - t.vertices[0].pos;
+    Vec3 v0 = t.vertices[1].pos - t.vertices[0].pos;
+    Vec3 v1 = t.vertices[2].pos - t.vertices[0].pos;
+    Vec3 v2 = intersection_point - t.vertices[0].pos;
 
     // Compute dot products
     float d00 = dot(v0, v0);
@@ -71,7 +71,7 @@ vec3 interpolate_normal_on_triangle(const Triangle& t, const vec3& intersection_
     float u = 1.0f - v - w;
 
     // Interpolate normal
-    vec3 normal = t.vertices[0].norm * u + t.vertices[1].norm * v + t.vertices[2].norm * w;
+    Vec3 normal = t.vertices[0].norm * u + t.vertices[1].norm * v + t.vertices[2].norm * w;
 
     return normal.normalize();
 }

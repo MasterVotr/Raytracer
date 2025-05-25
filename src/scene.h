@@ -1,41 +1,37 @@
 #pragma once
 
-#include "../include/json.hpp"
-#include "camera.h"
-#include "material.h"
-#include "triangle.h"
-
+#include <memory>
 #include <vector>
+
+#include "include/json.hpp"
+
+#include "src/camera.h"
+#include "src/color.h"
+#include "src/material.h"
+#include "src/triangle.h"
+#include "src/vec3.h"
 
 namespace raytracer {
 
 class Scene {
    public:
-    Scene(const nlohmann::json& config) : config_(config) { config_setup(config_.at("scene")); }
+    Scene(const nlohmann::json& config) : config_(config) { config_setup(config); }
 
-    inline void AddTriangle(const Triangle& t) { triangles_.emplace_back(t); }
-    inline const std::vector<Triangle>& GetTriangles() const { return triangles_; }
+    inline void AddTriangle(std::shared_ptr<const Triangle> t) { triangles_.emplace_back(t); }
     inline void AddMaterial(const Material& m) { materials_.emplace_back(m); }
+    inline void AddLight(std::shared_ptr<const Triangle> t) { lights_.emplace_back(t); }
+    inline const std::vector<std::shared_ptr<const Triangle>>& GetTriangles() const { return triangles_; }
     inline const std::vector<Material>& GetMaterials() const { return materials_; }
-    inline void AddLight(const Triangle& t) { lights_.emplace_back(t); }
-    inline const std::vector<Triangle>& GetLights() const { return lights_; }
+    inline const std::vector<std::shared_ptr<const Triangle>>& GetLights() const { return lights_; }
     inline void SetCamera(const Camera& camera) { camera_ = camera; }
     inline const Camera& GetCamera() const { return camera_; }
 
    private:
     struct PointLight {
-        point3 pos;
-        vec3 color;
+        Point3 pos;
+        Color color;
     };
 
-    const nlohmann::json& config_;
-    std::vector<Triangle> triangles_;
-    std::vector<Material> materials_;
-    std::vector<Triangle> lights_;
-    Camera camera_;
-    std::vector<PointLight> point_lights_;
-
-   private:
     void config_setup(const nlohmann::json& config) {
         // Load Camera config
         camera_ = Camera(config.at("camera"));
@@ -44,12 +40,19 @@ class Scene {
         // Load point lights
         for (const auto& light : config.at("point_lights")) {
             PointLight pl;
-            pl.pos = point3(light.at("pos")[0], light.at("pos")[1], light.at("pos")[2]);
-            pl.color = vec3(light.at("color")[0], light.at("color")[1], light.at("color")[2]);
+            pl.pos = Point3(light.at("pos")[0], light.at("pos")[1], light.at("pos")[2]);
+            pl.color = Vec3(light.at("color")[0], light.at("color")[1], light.at("color")[2]);
             point_lights_.emplace_back(pl);
         }
         std::clog << "\rScene configured     " << std::endl;
     }
+
+    const nlohmann::json& config_;
+    std::vector<std::shared_ptr<const Triangle>> triangles_;
+    std::vector<Material> materials_;
+    std::vector<std::shared_ptr<const Triangle>> lights_;
+    Camera camera_;
+    std::vector<PointLight> point_lights_;
 };
 
 }  // namespace raytracer

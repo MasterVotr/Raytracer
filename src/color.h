@@ -1,21 +1,21 @@
 #pragma once
 
-#include "util.h"
-#include "vec3.h"
-
 #include <iostream>
+
+#include "src/util.h"
+#include "src/vec3.h"
 
 namespace raytracer {
 
-using color = vec3;
+using Color = Vec3;
 
-void write_color(std::ostream& out, color pixel_color) {
+inline void write_color(std::ostream& out, Color pixel_color) {
     out << static_cast<int>(255.999 * pixel_color.x) << ' ' << static_cast<int>(255.999 * pixel_color.y) << ' '
         << static_cast<int>(255.999 * pixel_color.z) << '\n';
 }
 
-color clamp_color(const color& c, float min = 0.0f, float max = 1.0f) {
-    return color(clamp(c.x, min, max), clamp(c.y, min, max), clamp(c.z, min, max));
+inline Color clamp_color(const Color& c, float min = 0.0f, float max = 1.0f) {
+    return Color(clamp(c.x, min, max), clamp(c.y, min, max), clamp(c.z, min, max));
 }
 
 }  // namespace raytracer
