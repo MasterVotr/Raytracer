@@ -1,6 +1,7 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 
 #include "include/json.hpp"
 

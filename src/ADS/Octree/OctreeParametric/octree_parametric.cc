@@ -1,6 +1,13 @@
 #include "src/ADS/Octree/OctreeParametric/octree_parametric.h"
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
 #include <iostream>
+#include <memory>
+#include <stack>
+#include <stdexcept>
 #include <vector>
 
 #include "include/json.hpp"

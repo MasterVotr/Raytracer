@@ -1,8 +1,14 @@
 #include "src/Renderer/renderer.h"
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <memory>
+#include <stdexcept>
+#include <vector>
 
 #include "include/json.hpp"
 
@@ -380,7 +386,7 @@ void Renderer::config_setup(const nlohmann::json& config) {
 
 void Renderer::save_image_to_pmm(int img_width, int img_height, std::vector<Color>& img) const {
     std::clog << "Saving image..." << std::flush;
-    std::ofstream output(config_.at("output").at("filename"));
+    std::ofstream output(std::string(config_.at("output").at("filename")));
     output << "P3\n" << img_width << ' ' << img_height << "\n255\n";
     for (const auto& pixel_color : img) {
         write_color(output, pixel_color);
