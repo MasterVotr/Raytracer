@@ -5,6 +5,7 @@
         "basepath": "res/"
     },
     "renderer": {
+        "render_mode": "cpu",
         "max_depth": 10,
         "samples_per_triangle": 32,
         "render_type": "blinn_phong",
