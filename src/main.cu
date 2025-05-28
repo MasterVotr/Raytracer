@@ -1,3 +1,4 @@
+#include <cuda_runtime.h>
 #include <ctime>
 #include <fstream>
 #include <iostream>
@@ -14,13 +15,12 @@ int main(int argc, char const* argv[]) {
         std::cerr << "Usage: " << argv[0] << " <config_file>" << std::endl;
         return 1;
     }
-    std::clog << "Loading config..." << std::flush;
-    std::ifstream ifs(argv[1]);
-    nlohmann::json config = nlohmann::json::parse(ifs);
-    ifs.close();
-    std::clog << "\rConfig loaded     " << std::endl;
-
     try {
+        std::clog << "Loading config..." << std::flush;
+        std::ifstream ifs(argv[1]);
+        nlohmann::json config = nlohmann::json::parse(ifs);
+        ifs.close();
+        std::clog << "\rConfig loaded     " << std::endl;
         if (config.at("seed") != -1) {
             srand(config.at("seed"));
         } else {

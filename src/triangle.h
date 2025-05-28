@@ -1,6 +1,6 @@
 #pragma once
 
-#include <array>
+#include <ostream>
 
 #include "src/vec3.h"
 #include "src/vertex.h"
@@ -12,10 +12,22 @@ struct Triangle {
     size_t material_id;
     Vec3 normal;
 
-    bool operator==(const Triangle& other) const {
+    __host__ __device__ bool operator==(const Triangle& other) const {
         return (vertices[0] == other.vertices[0] && vertices[1] == other.vertices[1] && vertices[2] == other.vertices[2]) ||
                (vertices[0] == other.vertices[1] && vertices[1] == other.vertices[2] && vertices[2] == other.vertices[0]) ||
                (vertices[0] == other.vertices[2] && vertices[1] == other.vertices[0] && vertices[2] == other.vertices[1]);
+    }
+
+    __device__ void print() const {
+        printf("[");
+        vertices[0].print();
+        printf(", ");
+        vertices[1].print();
+        printf(", ");
+        vertices[2].print();
+        printf("], mat_id:%zu, norm:(", material_id);
+        normal.print();
+        printf(")");
     }
 };
 
@@ -25,13 +37,13 @@ inline std::ostream& operator<<(std::ostream& os, Triangle triangle) {
     return os;
 }
 
-inline Vec3 calculate_triangle_normal(const Triangle& t) {
+__host__ __device__ inline Vec3 calculate_triangle_normal(const Triangle& t) {
     Vec3 u = t.vertices[1].pos - t.vertices[0].pos;
     Vec3 v = t.vertices[2].pos - t.vertices[1].pos;
     return cross(u, v).normalize();
 }
 
-inline float calculate_triangle_area(const Triangle& t) {
+__host__ __device__ inline float calculate_triangle_area(const Triangle& t) {
     Vec3 u = t.vertices[1].pos - t.vertices[0].pos;
     Vec3 v = t.vertices[2].pos - t.vertices[1].pos;
     Vec3 c = cross(u, v);
@@ -39,19 +51,28 @@ inline float calculate_triangle_area(const Triangle& t) {
     return 0.5 * c_magnitude;
 }
 
-inline Vec3 rand_point_on_triangle(const Triangle& t) {
-    auto r1 = (float)rand() / (RAND_MAX);
-    auto r2 = (float)rand() / (RAND_MAX);
-    auto u = (r1 + r2 > 1) ? 1 - r1 : r1;
-    auto v = (r1 + r2 > 1) ? 1 - r2 : r2;
+__host__ __device__ inline Vec3 rand_point_on_triangle(const Triangle& t, unsigned int seed = 0, int i = 0) {
+#ifdef __CUDA_ARCH__
+    float r1 = device_rand(seed, i) / (RAND_MAX);
+    float r2 = device_rand(seed, i + 1) / (RAND_MAX);
+#else
+    float r1 = (float)rand() / (RAND_MAX);
+    float r2 = (float)rand() / (RAND_MAX);
+#endif
+    if (r1 + r2 > 1.0f) {
+        r1 = 1.0f - r1;
+        r2 = 1.0f - r2;
+    }
+    float u = r1;
+    float v = r2;
+    float w = 1.0f - u - v;
     const auto& a = t.vertices[0].pos;
     const auto& b = t.vertices[1].pos;
     const auto& c = t.vertices[2].pos;
-
-    return Vec3(a + (b - a) * u + (c - a) * v);
+    return a * w + b * u + c * v;
 }
 
-inline Vec3 interpolate_normal_on_triangle(const Triangle& t, const Vec3& intersection_point) {
+__host__ __device__ inline Vec3 interpolate_normal_on_triangle(const Triangle& t, const Vec3& intersection_point) {
     // Compute edges
     Vec3 v0 = t.vertices[1].pos - t.vertices[0].pos;
     Vec3 v1 = t.vertices[2].pos - t.vertices[0].pos;

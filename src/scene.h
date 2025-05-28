@@ -17,14 +17,14 @@ class Scene {
    public:
     Scene(const nlohmann::json& config) : config_(config) { config_setup(config); }
 
-    inline void AddTriangle(std::shared_ptr<const Triangle> t) { triangles_.emplace_back(t); }
-    inline void AddMaterial(const Material& m) { materials_.emplace_back(m); }
-    inline void AddLight(std::shared_ptr<const Triangle> t) { lights_.emplace_back(t); }
-    inline const std::vector<std::shared_ptr<const Triangle>>& GetTriangles() const { return triangles_; }
-    inline const std::vector<Material>& GetMaterials() const { return materials_; }
-    inline const std::vector<std::shared_ptr<const Triangle>>& GetLights() const { return lights_; }
-    inline void SetCamera(const Camera& camera) { camera_ = camera; }
-    inline const Camera& GetCamera() const { return camera_; }
+    void AddTriangle(std::shared_ptr<const Triangle> t) { triangles_.emplace_back(t); }
+    void AddMaterial(const Material& m) { materials_.emplace_back(m); }
+    void AddLight(std::shared_ptr<const Triangle> t) { lights_.emplace_back(t); }
+    const std::vector<std::shared_ptr<const Triangle>>& GetTriangles() const { return triangles_; }
+    const std::vector<Material>& GetMaterials() const { return materials_; }
+    const std::vector<std::shared_ptr<const Triangle>>& GetLights() const { return lights_; }
+    void SetCamera(const Camera& camera) { camera_ = camera; }
+    const Camera& GetCamera() const { return camera_; }
 
    private:
     struct PointLight {

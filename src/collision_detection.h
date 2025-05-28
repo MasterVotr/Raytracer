@@ -9,7 +9,7 @@
 namespace raytracer {
 
 // Calculates the time/parameter (t) at which the ray collides with the triangle, infinty if it misses
-inline float collision_ray_triangle(Ray& r, const Triangle& triangle, bool cull_backfaces_ = true) {
+__device__ __host__ inline float collision_ray_triangle(Ray& r, const Triangle& triangle, bool cull_backfaces_ = true) {
     // Extract triangle vertices and ray properties
     const Vec3& a = triangle.vertices[0].pos;
     const Vec3& b = triangle.vertices[1].pos;

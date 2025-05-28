@@ -9,7 +9,12 @@ struct Vertex {
     Point3 pos;
     Vec3 norm;
 
-    bool operator==(const Vertex& other) const { return pos == other.pos && norm == other.norm; }
+    __host__ __device__ bool operator==(const Vertex& other) const { return pos == other.pos && norm == other.norm; }
+    __device__ void print() const {
+        printf("(");
+        pos.print();
+        printf(")");
+    }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Vertex& vertex) {
