@@ -5,7 +5,7 @@ SRC_DIR := src
 OBJ_DIR := build
 SRC_FILES := $(shell find $(SRC_DIR) -name '*.cu')
 OBJ_FILES := $(patsubst $(SRC_DIR)/%.cu,$(OBJ_DIR)/%.o,$(SRC_FILES))
-OUT := raytracer
+OUT := raytracer.out
 
 .PHONY: compile run clean
 
