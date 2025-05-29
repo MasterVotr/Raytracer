@@ -1,0 +1,207 @@
+================================================================================
+
+Testing config:
+
+source_file: CornellBox-Sphere.obj
+width: 800
+height: 800
+max_depth: 10
+samples_per_triangle: 50
+render_type: blinn_phong
+shading_type: smooth
+cull_backfaces: true
+max_triangles_per_BB: 16
+max_depth: 10
+
+
+================================================================================
+
+Lenovo Legion:
+
+AMD Ryzen 5 5600H; 3,3 GHz
+NVIDIA GeForce RTX 3060 Laptop GPU; 6 GiB VRAM
+16 GB RAM
+
+
+--------------------------------------------------------------------------------
+
+GPU:
+
+block_size: 512
+
+Config loaded
+Renderer configured
+Camera configured
+Scene configured
+Loading res/CornellBox-Sphere.obj done.
+Translating everything to structures done.
+Creating rays done
+Memory allocation and data transfer time: 355.907 ms
+Grid size: 1250, Block size: 512
+Kernel execution time: 163929 ms
+Total rendering time: 164285 ms
+Image saved to"output_gpu.ppm"
+
+--------------------------------------------------------------------------------
+
+CPU - Octree:
+
+Config loaded
+Renderer configured
+Camera configured
+Scene configured
+Loading res/CornellBox-Sphere.obj done.
+Translating everything to structures done.
+Creating rays done
+Octree configured
+Building octree done
+Octree building time: 0.008 s
+Rendering done
+Octree stats:
+  Max depth: 10
+  Nodes count: 1584
+  Leaf nodes count: 1300
+  Average depth of leaf nodes: 5.21769
+  Max triangles in leaf nodes: 34
+  Average triangles in leaf nodes: 7.03
+  Search method call count: 116534516
+  Search node count: 1138980912
+  Search time: 74.1818 s
+  Search return count: 3927331787
+  Average search return count: 33.701
+  Search leaves visited: 603957075
+Rendering time: 213.895 s
+Ray-triangle collision count: 2762512916
+Average ray-triangle collision count per ray: 4316.43
+Ray-triangle collision duration: 23.8575 s
+Average ray-triangle collision duration per ray: 0.0372773 ms
+Image saved to"output_cpu-octree.ppm"
+
+--------------------------------------------------------------------------------
+
+CPU:
+
+Config loaded
+Renderer configured
+Camera configured
+Scene configured
+Loading res/CornellBox-Sphere.obj done.
+Translating everything to structures done.
+Creating rays done
+Rendering done
+DummyAds stats:
+  Search method call count: 116534516
+  Search return count: 254977521008
+  Average search return count: 2188
+Rendering time: 3460.05 s
+Ray-triangle collision count: 245520226065
+Average ray-triangle collision count per ray: 383625
+Ray-triangle collision duration: 1833.29 s
+Average ray-triangle collision duration per ray: 2.86452 ms
+Image saved to"output_cpu-none.ppm"
+
+================================================================================
+
+cluster.fit.cvut.cz
+
+NVIDIA GeForce RTX 4070 Ti; 12 GiB VRAM
+
+--------------------------------------------------------------------------------
+
+GPU:
+
+block_size: 256
+
+Config loaded
+Renderer configured
+Camera configured
+Scene configured
+Loading res/CornellBox-Sphere.obj done.
+Translating everything to structures done.
+Creating rays done
+Memory allocation and data transfer time: 1091.46 ms
+Grid size: 2500, Block size: 256
+Kernel execution time: 6282.65 ms
+Total rendering time: 7374.11 ms
+Image saved to"output_gpu.ppm"
+
+================================================================================
+================================================================================
+
+Testing config:
+
+source_file: CornellBox-Sphere.obj
+width: 2000
+height: 2000
+samples_per_triangle: 50
+render_type: blinn_phong
+shading_type: smooth
+cull_backfaces: true
+
+
+================================================================================
+
+cluster.fit.cvut.cz
+
+NVIDIA GeForce RTX 4070 Ti; 12 GiB VRAM
+
+--------------------------------------------------------------------------------
+
+GPU:
+
+block_size: 256
+
+Config loaded
+Renderer configured
+Camera configured
+Scene configured
+Loading res/CornellBox-Sphere.obj done.
+Translating everything to structures done.
+Creating rays done
+Memory allocation and data transfer time: 1414.6 ms
+Grid size: 15625, Block size: 256
+Kernel execution time: 30111.1 ms
+Total rendering time: 31525.7 ms
+Image saved to"output_2000.ppm"
+
+================================================================================
+================================================================================
+
+Testing config:
+
+source_file: CornellBox-Sphere.obj
+width: 10000
+height: 10000
+samples_per_triangle: 50
+render_type: blinn_phong
+shading_type: smooth
+cull_backfaces: true
+
+
+================================================================================
+
+cluster.fit.cvut.cz
+
+NVIDIA GeForce RTX 4070 Ti; 12 GiB VRAM
+
+--------------------------------------------------------------------------------
+
+GPU:
+
+block_size: 256
+
+Config loaded
+Renderer configured
+Camera configured
+Scene configured
+Loading res/CornellBox-Sphere.obj done.
+Translating everything to structures done.
+Creating rays done
+Memory allocation and data transfer time: 5540.1 ms
+Grid size: 390625, Block size: 256
+
+Kernel execution time: 640426 ms
+Total rendering time: 645966 ms
+Image saved to"output_10000.ppm"
+
+================================================================================
