@@ -12,8 +12,8 @@ Raytracer project from the subject NI-PG1 and NI-GPU at CTU Prague 2024/25.
 ## About
 
 **Author: Jakub Votrubec**  
-**Subject teacher NI-PG1: Ing. Radek Richtr, Ph.D.**
-**Subject teacher NI-GPU: doc. Ing. Ivan Šimeček, Ph.D.**
+**NI-PG1 teacher: Ing. Radek Richtr, Ph.D.**  
+**NI-GPU teacher: doc. Ing. Ivan Šimeček, Ph.D.**  
 
 This project is a raytracer developed as part of the NI-PG1 and NI-GPU course at CTU Prague for the academic year 2024/25. It demonstrates fundamental computer graphics concepts such as ray tracing, shading, and rendering. It also demonstrates the value of acceleration data structures when it comes to optimizing render time. There is also a GPU implementation using CUDA on the **NI-GPU** branch
 
@@ -27,7 +27,8 @@ The full report in Czech can be found [here](report/report.pdf).
 - `res/` - sample scenes
 - `src/` - structured source code
 - `default_config.json` - default render configuration showcasing the config structure
-- `Makefile` - build system using Make
+- `Makefile` – build system using Make (for Linux)
+- `CMakeLists.txt` – build system using CMake (for Windows)
 
 ### Dependencies
 - [tinyobjloader](https://github.com/tinyobjloader/tinyobjloader) - for loading `.obj` files
