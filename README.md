@@ -1,5 +1,5 @@
-# PG1-raytracer
-Raytracer project from the subject PG1 at CTU Prague 2024/25.
+# Raytracer
+Raytracer project from the subject NI-PG1 and NI-GPU at CTU Prague 2024/25.
 
 ## Table of Contents
 - [About](#about)
@@ -12,9 +12,10 @@ Raytracer project from the subject PG1 at CTU Prague 2024/25.
 ## About
 
 **Author: Jakub Votrubec**  
-**Subject teacher: Ing. Radek Richtr, Ph.D.**
+**Subject teacher NI-PG1: Ing. Radek Richtr, Ph.D.**
+**Subject teacher NI-GPU: doc. Ing. Ivan Šimeček, Ph.D.**
 
-This project is a raytracer developed as part of the PG1 course at CTU Prague for the academic year 2024/25. It demonstrates fundamental computer graphics concepts such as ray tracing, shading, and rendering. It also demonstrates the value of acceleration data structures when it comes to optimizing render time.
+This project is a raytracer developed as part of the NI-PG1 and NI-GPU course at CTU Prague for the academic year 2024/25. It demonstrates fundamental computer graphics concepts such as ray tracing, shading, and rendering. It also demonstrates the value of acceleration data structures when it comes to optimizing render time. There is also a GPU implementation using CUDA on the **NI-GPU** branch
 
 The full report in Czech can be found [here](report/report.pdf).
 
@@ -57,7 +58,14 @@ The full report in Czech can be found [here](report/report.pdf).
 - Parametric search Octree implementation. I implemented the algorithm from the research paper **An Efficient Parametric Algorithm for Octree Traversal** by J. Revelles, C. Urena, and M. Lastra.
     - Unfortunately, I wasn't able to make it work completely, but the implementation is still included.
 
+### Paralelization on GPU
+- I also implemented the Raytracer on the GPU using CUDA.
+- This implementation is without *fuzzysampling* and the ADS.
+- You can find the implementation on the **NI-GPU** branch of this repository
+
 ## Installation
+
+### Linux
 1. Clone the repository:
     ```bash
     git clone https://github.com/MasterVotr/PG1-raytracer.git
@@ -74,13 +82,42 @@ The full report in Czech can be found [here](report/report.pdf).
     ```bash
     make compile
     ```
+### Windows
+- only on the **NI-GPU** branch
+1. Clone the repository:
+    ```bash
+    git clone https://github.com/MasterVotr/PG1-raytracer.git
+    ```
+2. Navigate to the project directory:
+    ```bash
+    cd PG1-raytracer
+    ```
+3. Copy and create your own config file from the example one:
+    ```bash
+    cp default_config.json config.json
+    ```
+4. Build the project using CMake:
+    ```bash
+    cmake -S . -B build
+    cmake --build build --config Release
+    ```
 
 ## Usage
+
+### Linux
 1. Put your scenes in `.obj` and `.mtl` format in the `res/` directory.
 2. Create your `config.json` with your scene configuration.
 3. Run the raytracer with a sample config:
     ```bash
-    ./raytracer config.json
+    ./raytracer.out config.json
+    ```
+### Windows
+- only on the **NI-GPU** branch
+1. Put your scenes in `.obj` and `.mtl` format in the `res/` directory.
+2. Create your `config.json` with your scene configuration.
+3. Run the raytracer with a sample config:
+    ```bash
+    build\Release\raytracer.out config.json
     ```
 
 ## Examples
@@ -106,6 +143,5 @@ The full report in Czech can be found [here](report/report.pdf).
     - `setup_config()` function - add the option,
     - `setup_ads` function - creation of the new ADS.
 
-### Paralelization
-- It would greatly speed up the rendering time if the rendering work divided among multiple threads.
-- There is potential for CPU and GPU paralelization.
+### ADS Paralelization
+- The current paralization on GPU is only for the naive approach, it would speed up the rendering imensily if the ADS was also ported to the GPU
