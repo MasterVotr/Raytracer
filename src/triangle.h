@@ -2,6 +2,7 @@
 
 #include <array>
 
+#include "src/aabb.h"
 #include "src/vec3.h"
 #include "src/vertex.h"
 
@@ -77,6 +78,20 @@ inline Vec3 interpolate_normal_on_triangle(const Triangle& t, const Vec3& inters
     Vec3 normal = t.vertices[0].norm * u + t.vertices[1].norm * v + t.vertices[2].norm * w;
 
     return normal.normalize();
+}
+
+inline Vec3 calculate_triangle_centroid(const Triangle& t) {
+    return (t.vertices[0].pos + t.vertices[1].pos + t.vertices[2].pos) / 3.0f;
+}
+
+inline AABB calculate_trangle_aabb(const Triangle& t) {
+    Point3 min = {std::min({t.vertices[0].pos.x, t.vertices[1].pos.x, t.vertices[2].pos.x}),
+                  std::min({t.vertices[0].pos.y, t.vertices[1].pos.y, t.vertices[2].pos.y}),
+                  std::min({t.vertices[0].pos.z, t.vertices[1].pos.z, t.vertices[2].pos.z})};
+    Point3 max = {std::max({t.vertices[0].pos.x, t.vertices[1].pos.x, t.vertices[2].pos.x}),
+                  std::max({t.vertices[0].pos.y, t.vertices[1].pos.y, t.vertices[2].pos.y}),
+                  std::max({t.vertices[0].pos.z, t.vertices[1].pos.z, t.vertices[2].pos.z})};
+    return AABB(min, max);
 }
 
 }  // namespace raytracer
