@@ -21,9 +21,9 @@
 
 namespace raytracer {
 
-void Renderer::RenderScene(const Scene& scene) const {
-    std::vector<Color> img;
-    img.reserve(scene.GetCamera().width * scene.GetCamera().height);
+std::vector<float> Renderer::RenderScene(const Scene& scene) const {
+    std::vector<float> img;
+    img.reserve(scene.GetCamera().width * scene.GetCamera().height * 3);
     ray_trinagle_collision_count_ = 0;
     ray_trinagle_collision_duration_ = 0;
 
@@ -47,7 +47,9 @@ void Renderer::RenderScene(const Scene& scene) const {
         }
         pixel_color = pixel_color / (scene.GetCamera().samples_per_pixel);
         pixel_color = clamp_color(pixel_color);
-        img.emplace_back(pixel_color);
+        img.emplace_back(pixel_color.x);
+        img.emplace_back(pixel_color.y);
+        img.emplace_back(pixel_color.z);
     }
     std::clog << "\rRendering done               " << std::endl;
 
@@ -64,7 +66,7 @@ void Renderer::RenderScene(const Scene& scene) const {
     std::clog << "Average ray-triangle collision duration per ray: "
               << (float)ray_trinagle_collision_duration_ / rays.size() / 1000.0f / 1000.0f << " ms" << std::endl;
 
-    save_image_to_pmm(scene.GetCamera().width, scene.GetCamera().height, img);
+    return img;
 }
 
 std::unique_ptr<Ads> Renderer::setup_ads(const Scene& scene) const {
@@ -374,17 +376,6 @@ void Renderer::config_setup(const nlohmann::json& config) {
     }
 
     std::clog << "\rRenderer configured     " << std::endl;
-}
-
-void Renderer::save_image_to_pmm(int img_width, int img_height, std::vector<Color>& img) const {
-    std::clog << "Saving image..." << std::flush;
-    std::ofstream output(config_.at("output").at("filename"));
-    output << "P3\n" << img_width << ' ' << img_height << "\n255\n";
-    for (const auto& pixel_color : img) {
-        write_color(output, pixel_color);
-    }
-    std::clog << "\rImage saved to" << config_.at("output").at("filename") << "        \n";
-    output.close();
 }
 
 }  // namespace raytracer

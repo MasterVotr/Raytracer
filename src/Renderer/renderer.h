@@ -24,7 +24,7 @@ class Renderer {
 
     Renderer(const nlohmann::json& config) : config_(config) { config_setup(config); };
 
-    void RenderScene(const Scene& scene) const;
+    std::vector<float> RenderScene(const Scene& scene) const;
 
    private:
     std::unique_ptr<Ads> setup_ads(const Scene& scene) const;
@@ -46,7 +46,6 @@ class Renderer {
                      const Vec3& light_pos) const;
 
     void config_setup(const nlohmann::json& config);
-    void save_image_to_pmm(int img_width, int img_height, std::vector<Color>& img) const;
 
     const nlohmann::json& config_;
     int max_depth_;
