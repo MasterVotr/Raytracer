@@ -86,6 +86,24 @@ inline bool collision_ray_aabb(const Ray& r, const AABB& aabb) {
     return t_max >= t_min;
 }
 
+// Calculates the latest axis entry a earliest axis exit and compares them -> "slab" technique + return the t values
+inline bool collision_ray_aabb(const Ray& r, const AABB& aabb, float& t_min, float& t_max) {
+    float t_min = -infinity;
+    float t_max = infinity;
+
+    for (int i = 0; i < 3; ++i) {
+        float inv_d = 1.0f / r.direction()[i];
+        float t0 = (aabb.min[i] - r.origin()[i]) * inv_d;
+        float t1 = (aabb.max[i] - r.origin()[i]) * inv_d;
+        if (inv_d < 0.0f) {
+            std::swap(t0, t1);
+        }
+        t_min = std::max(t_min, t0);
+        t_max = std::min(t_max, t1);
+    }
+    return t_max >= t_min;
+}
+
 // ChatGPT generated function, I don't understand it very well
 inline bool collision_triangle_aabb(const Triangle& t, const AABB& aabb) {
     const Vec3 box_center = (aabb.min + aabb.max) * 0.5f;
