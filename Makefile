@@ -1,6 +1,6 @@
 
 CXX := g++
-CFLAGS := -std=c++17 -I.
+CFLAGS := -std=c++20 -I.
 CFLAGSDEBUG := $(CFLAGS) -Wall -Wextra -Wpedantic -fsanitize=address -g
 
 SRC_DIR := src

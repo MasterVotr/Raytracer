@@ -1,8 +1,8 @@
 #pragma once
 
-#include "src/util.h"
-
 #include <ostream>
+
+#include "src/util.h"
 
 namespace raytracer {
 class Vec3 {
@@ -12,8 +12,7 @@ class Vec3 {
     Vec3(float x0, float y0, float z0 = 0) : x(x0), y(y0), z(z0) {}
     Vec3(const Vec3& other) = default;
     Vec3& operator=(const Vec3& other) {
-        if (this == &other)
-            return *this;
+        if (this == &other) return *this;
         x = other.x;
         y = other.y;
         z = other.z;
@@ -29,7 +28,9 @@ class Vec3 {
     void operator+=(const Vec3& v) { x += v.x, y += v.y, z += v.z; }
     void operator*=(float a) { x *= a, y *= a, z *= a; }
     void operator*=(const Vec3& v) { x *= v.x, y *= v.y, z *= v.z; }
-    bool operator==(const Vec3& v) const { return (fabs(x - v.x) < epsilon && fabs(y - v.y) < epsilon && fabs(z - v.z) < epsilon); }
+    bool operator==(const Vec3& v) const {
+        return (fabs(x - v.x) < epsilon && fabs(y - v.y) < epsilon && fabs(z - v.z) < epsilon);
+    }
     float operator[](int i) const {
         if (i == 0)
             return x;
@@ -51,17 +52,13 @@ using Point3 = Vec3;  // 3D point
 
 // Vec3 Utility Functions
 
-inline float dot(const Vec3& v1, const Vec3& v2) {
-    return (v1.x * v2.x + v1.y * v2.y + v1.z * v2.z);
-}
+inline float dot(const Vec3& v1, const Vec3& v2) { return (v1.x * v2.x + v1.y * v2.y + v1.z * v2.z); }
 
 inline Vec3 cross(const Vec3& v1, const Vec3& v2) {
     return Vec3(v1.y * v2.z - v1.z * v2.y, v1.z * v2.x - v1.x * v2.z, v1.x * v2.y - v1.y * v2.x);
 }
 
-inline Vec3 abs(const Vec3& v) {
-    return Vec3(fabs(v.x), fabs(v.y), fabs(v.z));
-}
+inline Vec3 abs(const Vec3& v) { return Vec3(fabs(v.x), fabs(v.y), fabs(v.z)); }
 
 inline std::ostream& operator<<(std::ostream& os, const Vec3& vec) {
     os << vec.x << " " << vec.y << " " << vec.z;

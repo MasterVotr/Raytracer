@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "include/json.hpp"
-
 #include "src/ADS/Octree/octree.h"
 #include "src/aabb.h"
 #include "src/ray.h"

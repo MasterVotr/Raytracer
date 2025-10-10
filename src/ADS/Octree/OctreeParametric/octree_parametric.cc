@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "include/json.hpp"
-
 #include "src/ADS/ads.h"
 #include "src/aabb.h"
 #include "src/collision_detection.h"
@@ -100,10 +99,10 @@ std::vector<std::shared_ptr<const Triangle>> OctreeParametric::Search(const Ray&
     // Adjust for negative directions of the ray
     auto [a_r, a] = adjust_ray_negative_direction(r, root->bounding_box);
 
-    // std::clog << "root->bounding_box: min = (" << root->bounding_box.min << "), max = (" << root->bounding_box.max << ")" << std::endl;
-    // std::clog << "Original ray: origin = " << r.origin() << ", direction = " << r.direction() << std::endl;
-    // std::clog << "Adjusted ray: origin = " << a_r.origin() << ", direction = " << a_r.direction() << std::endl;
-    // std::clog << "Adjustment mask (a): " << (int)a << std::endl;
+    // std::clog << "root->bounding_box: min = (" << root->bounding_box.min << "), max = (" << root->bounding_box.max <<
+    // ")" << std::endl; std::clog << "Original ray: origin = " << r.origin() << ", direction = " << r.direction() <<
+    // std::endl; std::clog << "Adjusted ray: origin = " << a_r.origin() << ", direction = " << a_r.direction() <<
+    // std::endl; std::clog << "Adjustment mask (a): " << (int)a << std::endl;
 
     // Aabb enter/exit coordinates calculation for each axis
     Vec3 inv_dir;
@@ -158,7 +157,8 @@ std::vector<std::shared_ptr<const Triangle>> OctreeParametric::Search(const Ray&
         uint8_t current_subnode_index = first_node(t0, tm);
         // std::clog << "Sequence of subnodes: " << std::flush;
         do {
-            // std::clog << (int)(current_subnode_index ^ a) << "(" << (int)current_subnode_index << "^" << (int)a << ") " << std::flush;
+            // std::clog << (int)(current_subnode_index ^ a) << "(" << (int)current_subnode_index << "^" << (int)a << ")
+            // " << std::flush;
             switch ((int)current_subnode_index) {
                 case 0:
                     if (node->octanes[current_subnode_index ^ a]) {
@@ -242,7 +242,8 @@ std::vector<std::shared_ptr<const Triangle>> OctreeParametric::Search(const Ray&
     search_time_ += duration;
     search_return_count_ += result.size();
 
-    // std::clog << "Ray in dir: " << r.direction() << " will check collision with " << result.size() << " triangles\n" << std::endl;
+    // std::clog << "Ray in dir: " << r.direction() << " will check collision with " << result.size() << " triangles\n"
+    // << std::endl;
     return result;
 }
 

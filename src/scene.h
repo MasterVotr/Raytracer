@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "include/json.hpp"
-
 #include "src/camera.h"
 #include "src/color.h"
 #include "src/material.h"

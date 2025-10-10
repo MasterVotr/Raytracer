@@ -54,7 +54,8 @@ inline float collision_ray_triangle(Ray& r, const Triangle& triangle, bool cull_
     // Compute the barycentric coordinate v
     Vec3 w = cross(q, e1);  // Cross product of q and edge 1
     float v = d_inv * dot(w, s);
-    if (v < 0.0 || (u + v) > 1.0) {  // If v is outside the range [0, 1] or u + v > 1, the intersection is outside the triangle
+    if (v < 0.0 ||
+        (u + v) > 1.0) {  // If v is outside the range [0, 1] or u + v > 1, the intersection is outside the triangle
         r.t_distance() = infinity;
         return infinity;
     }
@@ -104,7 +105,8 @@ inline bool collision_triangle_aabb(const Triangle& t, const AABB& aabb) {
         p0 = dot(v0, axis);
         p1 = dot(v1, axis);
         p2 = dot(v2, axis);
-        r = box_half_size.x * std::abs(axis.x) + box_half_size.y * std::abs(axis.y) + box_half_size.z * std::abs(axis.z);
+        r = box_half_size.x * std::abs(axis.x) + box_half_size.y * std::abs(axis.y) +
+            box_half_size.z * std::abs(axis.z);
         float min_p = std::min({p0, p1, p2});
         float max_p = std::max({p0, p1, p2});
         return !(min_p > r || max_p < -r);
@@ -114,24 +116,23 @@ inline bool collision_triangle_aabb(const Triangle& t, const AABB& aabb) {
     for (int i = 0; i < 3; ++i) {
         float min_v = std::min({v0[i], v1[i], v2[i]});
         float max_v = std::max({v0[i], v1[i], v2[i]});
-        if (min_v > box_half_size[i] || max_v < -box_half_size[i])
-            return false;
+        if (min_v > box_half_size[i] || max_v < -box_half_size[i]) return false;
     }
 
     // 2. Test axis perpendicular to triangle face
     Vec3 normal = t.normal;
     float p0 = dot(v0, normal);
-    float r = box_half_size.x * std::abs(normal.x) + box_half_size.y * std::abs(normal.y) + box_half_size.z * std::abs(normal.z);
-    if (std::abs(p0) > r)
-        return false;
+    float r = box_half_size.x * std::abs(normal.x) + box_half_size.y * std::abs(normal.y) +
+              box_half_size.z * std::abs(normal.z);
+    if (std::abs(p0) > r) return false;
 
     // 3. Test 9 cross-product axes
-    const Vec3 axes[] = {Vec3(0, -e0.z, e0.y), Vec3(0, -e1.z, e1.y), Vec3(0, -e2.z, e2.y), Vec3(e0.z, 0, -e0.x), Vec3(e1.z, 0, -e1.x),
-                         Vec3(e2.z, 0, -e2.x), Vec3(-e0.y, e0.x, 0), Vec3(-e1.y, e1.x, 0), Vec3(-e2.y, e2.x, 0)};
+    const Vec3 axes[] = {Vec3(0, -e0.z, e0.y), Vec3(0, -e1.z, e1.y), Vec3(0, -e2.z, e2.y),
+                         Vec3(e0.z, 0, -e0.x), Vec3(e1.z, 0, -e1.x), Vec3(e2.z, 0, -e2.x),
+                         Vec3(-e0.y, e0.x, 0), Vec3(-e1.y, e1.x, 0), Vec3(-e2.y, e2.x, 0)};
     for (const auto& axis : axes) {
         float r_axis, p0, p1, p2;
-        if (!axis_test(axis, r_axis, p0, p1, p2))
-            return false;
+        if (!axis_test(axis, r_axis, p0, p1, p2)) return false;
     }
 
     return true;
@@ -139,7 +140,8 @@ inline bool collision_triangle_aabb(const Triangle& t, const AABB& aabb) {
 
 // Compares the mins and maxes to detect collision with another aabb
 inline bool collision_aabb_aabb(const AABB& a, const AABB& b) {
-    return (a.min.x <= b.max.x && a.max.x >= b.min.x) && (a.min.y <= b.max.y && a.max.y >= b.min.y) && (a.min.z <= b.max.z && a.max.z >= b.min.z);
+    return (a.min.x <= b.max.x && a.max.x >= b.min.x) && (a.min.y <= b.max.y && a.max.y >= b.min.y) &&
+           (a.min.z <= b.max.z && a.max.z >= b.min.z);
 }
 
 }  // namespace raytracer

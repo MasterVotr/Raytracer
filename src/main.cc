@@ -3,7 +3,6 @@
 #include <iostream>
 
 #include "include/json.hpp"
-
 #include "src/ObjLoader/obj_loader.h"
 #include "src/Renderer/renderer.h"
 #include "src/scene.h"

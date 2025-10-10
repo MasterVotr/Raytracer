@@ -5,7 +5,6 @@
 #include <iostream>
 
 #include "include/json.hpp"
-
 #include "src/ADS/DummyAds/dummy_ads.h"
 #include "src/ADS/Octree/OctreeParametric/octree_parametric.h"
 #include "src/ADS/Octree/octree.h"
@@ -58,10 +57,12 @@ void Renderer::RenderScene(const Scene& scene) const {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
     std::clog << "Rendering time: " << duration / 1000.0 << " s" << std::endl;
     std::clog << "Ray-triangle collision count: " << ray_trinagle_collision_count_ << std::endl;
-    std::clog << "Average ray-triangle collision count per ray: " << (float)ray_trinagle_collision_count_ / rays.size() << std::endl;
-    std::clog << "Ray-triangle collision duration: " << ray_trinagle_collision_duration_ / 1000000000.0f << " s" << std::endl;
-    std::clog << "Average ray-triangle collision duration per ray: " << (float)ray_trinagle_collision_duration_ / rays.size() / 1000.0f / 1000.0f
-              << " ms" << std::endl;
+    std::clog << "Average ray-triangle collision count per ray: " << (float)ray_trinagle_collision_count_ / rays.size()
+              << std::endl;
+    std::clog << "Ray-triangle collision duration: " << ray_trinagle_collision_duration_ / 1000000000.0f << " s"
+              << std::endl;
+    std::clog << "Average ray-triangle collision duration per ray: "
+              << (float)ray_trinagle_collision_duration_ / rays.size() / 1000.0f / 1000.0f << " ms" << std::endl;
 
     save_image_to_pmm(scene.GetCamera().width, scene.GetCamera().height, img);
 }
@@ -199,11 +200,8 @@ Color Renderer::render_distance(float t_pixel, float t_max) const {
     return Color(greyscale, greyscale, greyscale);
 }
 
-Color Renderer::render_local_ilumination(const Scene& scene,
-                                         const std::unique_ptr<Ads>& ads,
-                                         const Triangle& triangle,
-                                         const Material& material,
-                                         const Point3& intersection_point,
+Color Renderer::render_local_ilumination(const Scene& scene, const std::unique_ptr<Ads>& ads, const Triangle& triangle,
+                                         const Material& material, const Point3& intersection_point,
                                          const Vec3& intersection_point_normal) const {
     Color final_color(0.0);
     for (size_t l = 0; l < scene.GetLights().size(); l++) {
@@ -226,11 +224,13 @@ Color Renderer::render_local_ilumination(const Scene& scene,
                 auto I_l = light_material.emission * w;
                 switch (render_type_) {
                     case PHONG: {
-                        accumulated_color += render_phong(scene.GetCamera(), material, intersection_point, intersection_point_normal, p_l, I_l);
+                        accumulated_color += render_phong(scene.GetCamera(), material, intersection_point,
+                                                          intersection_point_normal, p_l, I_l);
                         break;
                     }
                     case BLINN_PHONG: {
-                        accumulated_color += render_blinn_phong(scene.GetCamera(), material, intersection_point, intersection_point_normal, p_l, I_l);
+                        accumulated_color += render_blinn_phong(scene.GetCamera(), material, intersection_point,
+                                                                intersection_point_normal, p_l, I_l);
                         break;
                     }
                     default: {
@@ -246,12 +246,8 @@ Color Renderer::render_local_ilumination(const Scene& scene,
     return final_color;
 }
 
-Color Renderer::render_phong(const Camera& camera,
-                             const Material& material,
-                             const Point3& intersection_point,
-                             const Vec3& intersection_point_normal,
-                             const Point3& light_pos,
-                             const Color& I_l) const {
+Color Renderer::render_phong(const Camera& camera, const Material& material, const Point3& intersection_point,
+                             const Vec3& intersection_point_normal, const Point3& light_pos, const Color& I_l) const {
     // Compute the light direction, view direction and reflection direction
     auto d_l = (light_pos - intersection_point).normalize();
     auto d_v = (camera.pos - intersection_point).normalize();
@@ -266,11 +262,8 @@ Color Renderer::render_phong(const Camera& camera,
     return I_a + I_d + I_s + I_e;
 }
 
-Color Renderer::render_blinn_phong(const Camera& camera,
-                                   const Material& material,
-                                   const Point3& intersection_point,
-                                   const Vec3& intersection_point_normal,
-                                   const Point3& light_pos,
+Color Renderer::render_blinn_phong(const Camera& camera, const Material& material, const Point3& intersection_point,
+                                   const Vec3& intersection_point_normal, const Point3& light_pos,
                                    const Color& I_l) const {
     // Compute the light direction, view direction, and halfway vector
     auto d_l = (light_pos - intersection_point).normalize();
@@ -280,12 +273,14 @@ Color Renderer::render_blinn_phong(const Camera& camera,
     // Compute ambient, diffuse, specular, reflection, and refraction components
     auto I_a = I_l * Color(0.0f);  // Useless ambient color
     auto I_d = I_l * material.diffuse * std::max(0.0f, dot(intersection_point_normal, d_l));
-    auto I_s = I_l * material.specular * std::pow(std::max(0.0f, dot(intersection_point_normal, d_h)), material.shininess);
+    auto I_s =
+        I_l * material.specular * std::pow(std::max(0.0f, dot(intersection_point_normal, d_h)), material.shininess);
 
     return I_a + I_d + I_s;
 }
 
-bool Renderer::is_shadowed(const std::unique_ptr<Ads>& ads, const Point3& ray_intersection_point, const Vec3& light_pos) const {
+bool Renderer::is_shadowed(const std::unique_ptr<Ads>& ads, const Point3& ray_intersection_point,
+                           const Vec3& light_pos) const {
     auto dist_light = (light_pos - ray_intersection_point).length();
     auto shadow_ray = Ray(ray_intersection_point, (light_pos - ray_intersection_point).normalize());
     float shadow_t;
@@ -301,7 +296,8 @@ bool Renderer::is_shadowed(const std::unique_ptr<Ads>& ads, const Point3& ray_in
         // closer hit
         if (shadow_t < dist_light) {
             auto end = std::chrono::high_resolution_clock::now();
-            ray_trinagle_collision_duration_ += std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+            ray_trinagle_collision_duration_ +=
+                std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
             ray_trinagle_collision_count_ += i + 1;
             return true;  // Shadowed
         }
@@ -320,7 +316,8 @@ Ray Renderer::calculate_reflection_ray(const Ray& r, const Point3& ray_intersect
     return reflection_ray;
 }
 
-Ray Renderer::calculate_refraction_ray(const Ray& r, const Point3& ray_intersection_point, const Vec3& normal, float ior) const {
+Ray Renderer::calculate_refraction_ray(const Ray& r, const Point3& ray_intersection_point, const Vec3& normal,
+                                       float ior) const {
     Vec3 d_v = -r.direction();  // Inverted direction
     auto& d_n = normal;
     float n1 = 1.0;  // Air
@@ -336,7 +333,8 @@ Ray Renderer::calculate_refraction_ray(const Ray& r, const Point3& ray_intersect
 
 void Renderer::config_setup(const nlohmann::json& config) {
     std::clog << "Configuring renderer..." << std::flush;
-    background_color_ = Color(config.at("background_color")[0], config.at("background_color")[1], config.at("background_color")[2]);
+    background_color_ =
+        Color(config.at("background_color")[0], config.at("background_color")[1], config.at("background_color")[2]);
     max_depth_ = config.at("max_depth");
     samples_per_triangle_ = config.at("samples_per_triangle");
     cull_backfaces_ = config.at("cull_backfaces");

@@ -2,7 +2,6 @@
 
 #include "include/json.hpp"
 #include "include/tiny_obj_loader.h"
-
 #include "src/scene.h"
 
 namespace raytracer {

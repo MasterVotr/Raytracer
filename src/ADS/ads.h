@@ -3,7 +3,6 @@
 #include <vector>
 
 #include "include/json.hpp"
-
 #include "src/ray.h"
 #include "src/triangle.h"
 

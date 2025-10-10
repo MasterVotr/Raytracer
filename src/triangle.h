@@ -13,15 +13,18 @@ struct Triangle {
     Vec3 normal;
 
     bool operator==(const Triangle& other) const {
-        return (vertices[0] == other.vertices[0] && vertices[1] == other.vertices[1] && vertices[2] == other.vertices[2]) ||
-               (vertices[0] == other.vertices[1] && vertices[1] == other.vertices[2] && vertices[2] == other.vertices[0]) ||
-               (vertices[0] == other.vertices[2] && vertices[1] == other.vertices[0] && vertices[2] == other.vertices[1]);
+        return (vertices[0] == other.vertices[0] && vertices[1] == other.vertices[1] &&
+                vertices[2] == other.vertices[2]) ||
+               (vertices[0] == other.vertices[1] && vertices[1] == other.vertices[2] &&
+                vertices[2] == other.vertices[0]) ||
+               (vertices[0] == other.vertices[2] && vertices[1] == other.vertices[0] &&
+                vertices[2] == other.vertices[1]);
     }
 };
 
 inline std::ostream& operator<<(std::ostream& os, Triangle triangle) {
-    os << "[(" << triangle.vertices[0] << "), (" << triangle.vertices[1] << "), (" << triangle.vertices[2] << ")], mat_id:" << triangle.material_id
-       << ", norm:" << triangle.normal;
+    os << "[(" << triangle.vertices[0] << "), (" << triangle.vertices[1] << "), (" << triangle.vertices[2]
+       << ")], mat_id:" << triangle.material_id << ", norm:" << triangle.normal;
     return os;
 }
 

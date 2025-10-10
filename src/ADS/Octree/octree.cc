@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "include/json.hpp"
-
 #include "src/ADS/ads.h"
 #include "src/aabb.h"
 #include "src/collision_detection.h"
@@ -74,10 +73,12 @@ void Octree::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         }
 
         // Sets for checking if all trinagles were asigned to at least one octane
-        std::set<size_t> current_triangle_indices(current_octree_node->triangle_indices.begin(), current_octree_node->triangle_indices.end());
+        std::set<size_t> current_triangle_indices(current_octree_node->triangle_indices.begin(),
+                                                  current_octree_node->triangle_indices.end());
         std::set<size_t> octanes_triangle_indices;
 
-        // Divide the current node into octanse, bitwise each octanes is represented with XYZ: 000, 001, 010, 011, 100, 101, 110, 111
+        // Divide the current node into octanse, bitwise each octanes is represented with XYZ: 000, 001, 010, 011, 100,
+        // 101, 110, 111
         Vec3 half_size = abs(current_octree_node->bounding_box.max - current_octree_node->bounding_box.min) / 2.0;
         Vec3 min_aabb_epsilon = abs(current_octree_node->bounding_box.min) * aabb_epsilon;
         Vec3 max_aabb_epsilon = abs(current_octree_node->bounding_box.max) * aabb_epsilon;
@@ -98,7 +99,8 @@ void Octree::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
 
             // Assigning triangles to octane
             for (size_t t = 0; t < current_octree_node->triangle_indices.size(); t++) {
-                if (collision_triangle_aabb(*triangles_[current_octree_node->triangle_indices[t]], octane->bounding_box)) {
+                if (collision_triangle_aabb(*triangles_[current_octree_node->triangle_indices[t]],
+                                            octane->bounding_box)) {
                     octane->triangle_indices.emplace_back(current_octree_node->triangle_indices[t]);
                     octanes_triangle_indices.emplace(current_octree_node->triangle_indices[t]);
                 }
@@ -122,29 +124,34 @@ void Octree::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         }
 
         if (current_triangle_indices != octanes_triangle_indices) {
-            std::cerr << "Error: not all trinagles from parent (" << current_triangle_indices.size() << ") asigned to octanes("
-                      << octanes_triangle_indices.size() << ")" << std::endl;
+            std::cerr << "Error: not all trinagles from parent (" << current_triangle_indices.size()
+                      << ") asigned to octanes(" << octanes_triangle_indices.size() << ")" << std::endl;
             std::cerr << "Triangles not in octanes:\n" << std::flush;
             for (const auto& index : current_triangle_indices) {
                 if (octanes_triangle_indices.find(index) == octanes_triangle_indices.end()) {
-                    std::cerr << "\t" << index << "(" << triangles_[index]->vertices[0].pos.x << ", " << triangles_[index]->vertices[0].pos.y << ", "
-                              << triangles_[index]->vertices[0].pos.z << "), (" << triangles_[index]->vertices[1].pos.x << ", "
-                              << triangles_[index]->vertices[1].pos.y << ", " << triangles_[index]->vertices[1].pos.z << "), ("
-                              << triangles_[index]->vertices[2].pos.x << ", " << triangles_[index]->vertices[2].pos.y << ", "
-                              << triangles_[index]->vertices[2].pos.z << ")" << std::endl;
+                    std::cerr << "\t" << index << "(" << triangles_[index]->vertices[0].pos.x << ", "
+                              << triangles_[index]->vertices[0].pos.y << ", " << triangles_[index]->vertices[0].pos.z
+                              << "), (" << triangles_[index]->vertices[1].pos.x << ", "
+                              << triangles_[index]->vertices[1].pos.y << ", " << triangles_[index]->vertices[1].pos.z
+                              << "), (" << triangles_[index]->vertices[2].pos.x << ", "
+                              << triangles_[index]->vertices[2].pos.y << ", " << triangles_[index]->vertices[2].pos.z
+                              << ")" << std::endl;
                 }
             }
-            std::cerr << "Parent bounding box: (" << current_octree_node->bounding_box.min.x << ", " << current_octree_node->bounding_box.min.y
-                      << ", " << current_octree_node->bounding_box.min.z << ") : (" << current_octree_node->bounding_box.max.x << ", "
-                      << current_octree_node->bounding_box.max.y << ", " << current_octree_node->bounding_box.max.z << ")" << std::endl;
+            std::cerr << "Parent bounding box: (" << current_octree_node->bounding_box.min.x << ", "
+                      << current_octree_node->bounding_box.min.y << ", " << current_octree_node->bounding_box.min.z
+                      << ") : (" << current_octree_node->bounding_box.max.x << ", "
+                      << current_octree_node->bounding_box.max.y << ", " << current_octree_node->bounding_box.max.z
+                      << ")" << std::endl;
             std::cerr << "Octanes bounding boxes:" << std::endl;
             for (size_t o = 0; o < 8; ++o) {
                 if (current_octree_node->octanes[o]) {
                     std::cerr << "\t" << o << ": (" << current_octree_node->octanes[o]->bounding_box.min.x << ", "
-                              << current_octree_node->octanes[o]->bounding_box.min.y << ", " << current_octree_node->octanes[o]->bounding_box.min.z
-                              << ") : (" << current_octree_node->octanes[o]->bounding_box.max.x << ", "
-                              << current_octree_node->octanes[o]->bounding_box.max.y << ", " << current_octree_node->octanes[o]->bounding_box.max.z
-                              << ")" << std::endl;
+                              << current_octree_node->octanes[o]->bounding_box.min.y << ", "
+                              << current_octree_node->octanes[o]->bounding_box.min.z << ") : ("
+                              << current_octree_node->octanes[o]->bounding_box.max.x << ", "
+                              << current_octree_node->octanes[o]->bounding_box.max.y << ", "
+                              << current_octree_node->octanes[o]->bounding_box.max.z << ")" << std::endl;
                 }
             }
             std::cerr << std::endl;
@@ -246,7 +253,8 @@ Octree::OctreeStats Octree::calculate_stats() const {
                 if (octane->isLeaf) {
                     stats.leaf_nodes_count++;
                     stats.max_depth = std::max(stats.max_depth, octane->depth);
-                    stats.triangles_in_leaf_nodes = std::max(stats.triangles_in_leaf_nodes, octane->triangle_indices.size());
+                    stats.triangles_in_leaf_nodes =
+                        std::max(stats.triangles_in_leaf_nodes, octane->triangle_indices.size());
                     total_leaf_depth += octane->depth;
                     total_triangles_in_leaf_nodes += octane->triangle_indices.size();
                 }
