@@ -72,9 +72,9 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
 std::unique_ptr<Ads> Renderer::setup_ads(const Scene& scene) const {
     switch (acceleration_data_structure_) {
         case NONE:
-            return std::make_unique<DummyAds>(config_.at("acceleratied_data_structure"));
+            return std::make_unique<DummyAds>(config_.at("acceleration_data_structure"));
         case OCTREE:
-            return std::make_unique<Octree>(config_.at("acceleratied_data_structure"));
+            return std::make_unique<Octree>(config_.at("acceleration_data_structure"));
         case OCTREE_PARAMETRIC:
             return std::make_unique<OctreeParametric>(config_.at("acceleration_data_structure"));
         case BVH_NAIVE:
@@ -367,11 +367,11 @@ void Renderer::config_setup(const nlohmann::json& config) {
     }
 
     // Setup acceleration data structure
-    if (config.at("acceleratied_data_structure").at("name") == "none") {
+    if (config.at("acceleration_data_structure").at("name") == "none") {
         acceleration_data_structure_ = NONE;
-    } else if (config.at("acceleratied_data_structure").at("name") == "octree") {
+    } else if (config.at("acceleration_data_structure").at("name") == "octree") {
         acceleration_data_structure_ = OCTREE;
-    } else if (config.at("acceleratied_data_structure").at("name") == "octee_parametric") {
+    } else if (config.at("acceleration_data_structure").at("name") == "octee_parametric") {
         acceleration_data_structure_ = OCTREE_PARAMETRIC;
     } else if (config.at("acceleration_data_structure").at("name") == "bvh_naive") {
         acceleration_data_structure_ = BVH_NAIVE;

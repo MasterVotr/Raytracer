@@ -19,7 +19,7 @@
             0.01,
             0.01
         ],
-        "acceleratied_data_structure": {
+        "acceleration_data_structure": {
             "name": "octree",
             "max_triangles_per_BB": 16,
             "max_depth": 10
