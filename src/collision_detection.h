@@ -88,8 +88,8 @@ inline bool collision_ray_aabb(const Ray& r, const AABB& aabb) {
 
 // Calculates the latest axis entry a earliest axis exit and compares them -> "slab" technique + return the t values
 inline bool collision_ray_aabb(const Ray& r, const AABB& aabb, float& t_min, float& t_max) {
-    float t_min = -infinity;
-    float t_max = infinity;
+    t_min = -infinity;
+    t_max = infinity;
 
     for (int i = 0; i < 3; ++i) {
         float inv_d = 1.0f / r.direction()[i];
