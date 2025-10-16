@@ -162,4 +162,27 @@ inline bool collision_aabb_aabb(const AABB& a, const AABB& b) {
            (a.min.z <= b.max.z && a.max.z >= b.min.z);
 }
 
+// Calculates the distance of a point from aabb, if the point is inside -> return a negative value
+inline float collision_point_aabb(const Point3& p, const AABB& aabb) {
+    float d;
+    // Calculate point distance on each axis
+    float dx = std::min(fabs(aabb.min.x - p.x), fabs(aabb.max.x - p.x));
+    float dy = std::min(fabs(aabb.min.y - p.y), fabs(aabb.max.y - p.y));
+    float dz = std::min(fabs(aabb.min.z - p.z), fabs(aabb.max.z - p.z));
+
+    // if point is inside, the distance is the closest axis distance
+    bool is_inside_x = p.x >= aabb.min.x && p.x <= aabb.max.x;
+    bool is_inside_y = p.y >= aabb.min.y && p.y <= aabb.max.y;
+    bool is_inside_z = p.z >= aabb.min.z && p.z <= aabb.max.z;
+    if (is_inside_x && is_inside_y && is_inside_z) {
+        d = std::min({dx, dy, dz});
+        return -d;
+    }
+
+    // If the point is between bounding points of aabb on an axis, that axis does not contribute to the distance
+    d = sqrt((!is_inside_x * dx * dx) + (!is_inside_y * dy * dy) + (!is_inside_z * dz * dz));
+
+    return d;
+}
+
 }  // namespace raytracer
