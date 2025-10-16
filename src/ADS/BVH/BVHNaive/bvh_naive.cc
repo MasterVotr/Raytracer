@@ -30,7 +30,7 @@ void BvhNaive::Build(const std::vector<std::shared_ptr<const Triangle>>& triangl
     }
 
     // Create the root BVH node (add triangles and creat an AABB)
-    root_ = std::make_shared<BvhNode>(new BvhNode);
+    root_ = std::make_shared<BvhNode>();
     root_->triangle_indices.reserve(triangles_.size());
     root_->depth = 0;
     root_->isLeaf = false;
@@ -47,47 +47,60 @@ void BvhNaive::Build(const std::vector<std::shared_ptr<const Triangle>>& triangl
         s.pop();
 
         // Check depth and triangle count
-        if (curr_node->depth >= max_depth_ || curr_node->triangle_indices.size() >= max_triangles_per_BB_) {
+        if (curr_node->depth >= max_depth_ || curr_node->triangle_indices.size() < max_triangles_per_BB_) {
             curr_node->isLeaf = true;
             continue;
         }
 
         // Create children
-        curr_node->left = std::make_shared<BvhNode>(new BvhNode);
-        curr_node->right = std::make_shared<BvhNode>(new BvhNode);
+        curr_node->left = std::make_shared<BvhNode>();
+        curr_node->right = std::make_shared<BvhNode>();
         curr_node->left->depth = curr_node->depth + 1;
         curr_node->right->depth = curr_node->depth + 1;
         curr_node->left->isLeaf = false;
         curr_node->right->isLeaf = false;
 
-        // Find the split point along the longest axis (naive approach)
+        // Find the median to be used for splitting along the longest axis
         Vec3 aabb_size = curr_node->bounding_box.max - curr_node->bounding_box.min;
-        Point3 half_point = curr_node->bounding_box.max;
-        if (aabb_size.x > aabb_size.y) {
-            if (aabb_size.x > aabb_size.z) {
-                half_point.x -= aabb_size.x;
-            } else {
-                half_point.z -= aabb_size.z;
-            }
+        int splitting_axis;
+        if (aabb_size.x >= aabb_size.y && aabb_size.x >= aabb_size.z) {
+            splitting_axis = 0;
+        } else if (aabb_size.y >= aabb_size.z) {
+            splitting_axis = 1;
         } else {
-            if (aabb_size.y > aabb_size.z) {
-                half_point.y -= aabb_size.y;
-            } else {
-                half_point.z -= aabb_size.z;
-            }
+            splitting_axis = 2;
         }
-        AABB left_half = {curr_node->bounding_box.min, half_point};
-        AABB right_half = {half_point, curr_node->bounding_box.max};
+        auto& t_idxs = curr_node->triangle_indices;
+        size_t mid = t_idxs.size() / 2;
+        std::nth_element(t_idxs.begin(), t_idxs.begin() + mid, t_idxs.end(), [&](size_t t_idx_a, size_t t_idx_b) {
+            if (splitting_axis == 0) return t_centroids[t_idx_a].x < t_centroids[t_idx_b].x;
+            if (splitting_axis == 1) return t_centroids[t_idx_a].y < t_centroids[t_idx_b].y;
+            return t_centroids[t_idx_a].z < t_centroids[t_idx_b].z;
+        });
 
         // Split along the split point
-        for (auto t_idx : curr_node->triangle_indices) {
-            if (collision_point_aabb(t_centroids[t_idx], left_half) <= 0) {
-                curr_node->left->triangle_indices.emplace_back(t_idx);
-                curr_node->left->bounding_box.expand(t_aabbs[t_idx]);
-            } else {
-                curr_node->right->triangle_indices.emplace_back(t_idx);
-                curr_node->right->bounding_box.expand(t_aabbs[t_idx]);
-            }
+        curr_node->left->triangle_indices.assign(t_idxs.begin(), t_idxs.begin() + mid);
+        curr_node->right->triangle_indices.assign(t_idxs.begin() + mid, t_idxs.end());
+        curr_node->left->bounding_box = AABB();
+        for (auto t_idx : curr_node->left->triangle_indices) {
+            curr_node->left->bounding_box.expand(t_aabbs[t_idx]);
+        }
+        curr_node->right->bounding_box = AABB();
+        for (auto t_idx : curr_node->right->triangle_indices) {
+            curr_node->right->bounding_box.expand(t_aabbs[t_idx]);
+        }
+
+        assert(curr_node->triangle_indices.size() ==
+                   curr_node->left->triangle_indices.size() + curr_node->right->triangle_indices.size() &&
+               "Loosing private Triangle!");
+
+        // If the split failes restore current node as a leaf
+        if (curr_node->left->triangle_indices.empty() || curr_node->right->triangle_indices.empty()) {
+            curr_node->isLeaf = true;
+            curr_node->left.reset();
+            curr_node->right.reset();
+            std::cerr << "Bad split of a BVH node, (atleast) one node is empty!" << std::endl;
+            continue;
         }
 
         // If children are not empty, they are added to the stack to be processed
@@ -104,15 +117,11 @@ void BvhNaive::Build(const std::vector<std::shared_ptr<const Triangle>>& triangl
     }
 
     auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    std::clog << "Naive BVH building time: " << duration / 1000.0 << " seconds" << std::endl;
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+    std::clog << "Naive BVH building time: " << duration / 1000.0 << " ms" << std::endl;
 }
 
 std::vector<std::shared_ptr<const Triangle>> BvhNaive::Search(const Ray& r, bool first_hit) const {
-    // Recursively check if the BVH node collides with the given ray
-    // Current BVH node is a leaf -> return triangles
-    // Current BVH node is internal -> add children to the stack if they are colliding with the ray
-    // If first_hit -> end on first leaf, othewise continue the whole DFS search
     search_count_++;
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -134,13 +143,16 @@ std::vector<std::shared_ptr<const Triangle>> BvhNaive::Search(const Ray& r, bool
             for (const auto& t_idx : curr_node->triangle_indices) {
                 result.emplace_back(triangles_[t_idx]);
             }
-            // if (first_hit) { break; } TODO: test if this makes sense
+            // if (first_hit) { break; } // TODO: test if this makes sense
             continue;
         }
 
         // Add non empty children to the stack to be processed
         if (curr_node->left && collision_ray_aabb(r, curr_node->left->bounding_box)) {
             s.push(curr_node->left);
+        }
+        if (curr_node->right && collision_ray_aabb(r, curr_node->right->bounding_box)) {
+            s.push(curr_node->right);
         }
     }
 
