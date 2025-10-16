@@ -84,7 +84,7 @@ inline Vec3 calculate_triangle_centroid(const Triangle& t) {
     return (t.vertices[0].pos + t.vertices[1].pos + t.vertices[2].pos) / 3.0f;
 }
 
-inline AABB calculate_trangle_aabb(const Triangle& t) {
+inline AABB calculate_triangle_aabb(const Triangle& t) {
     Point3 min = {std::min({t.vertices[0].pos.x, t.vertices[1].pos.x, t.vertices[2].pos.x}),
                   std::min({t.vertices[0].pos.y, t.vertices[1].pos.y, t.vertices[2].pos.y}),
                   std::min({t.vertices[0].pos.z, t.vertices[1].pos.z, t.vertices[2].pos.z})};

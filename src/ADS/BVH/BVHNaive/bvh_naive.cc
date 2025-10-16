@@ -26,7 +26,7 @@ void BvhNaive::Build(const std::vector<std::shared_ptr<const Triangle>>& triangl
     t_aabbs.resize(triangles_.size());
     for (size_t t_idx = 0; t_idx < triangles_.size(); t_idx++) {
         t_centroids[t_idx] = calculate_triangle_centroid(*triangles_[t_idx]);
-        t_aabbs[t_idx] = calculate_trangle_aabb(*triangles_[t_idx]);
+        t_aabbs[t_idx] = calculate_triangle_aabb(*triangles_[t_idx]);
     }
 
     // Create the root BVH node (add triangles and creat an AABB)
