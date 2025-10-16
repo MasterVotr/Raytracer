@@ -5,9 +5,9 @@
 #include <iostream>
 
 #include "include/json.hpp"
+#include "src/ADS/BVH/BVHNaive/bvh_naive.h"
 #include "src/ADS/DummyAds/dummy_ads.h"
 #include "src/ADS/Octree/OctreeParametric/octree_parametric.h"
-#include "src/ADS/Octree/octree.h"
 #include "src/ADS/ads.h"
 #include "src/camera.h"
 #include "src/collision_detection.h"
@@ -76,7 +76,9 @@ std::unique_ptr<Ads> Renderer::setup_ads(const Scene& scene) const {
         case OCTREE:
             return std::make_unique<Octree>(config_.at("acceleratied_data_structure"));
         case OCTREE_PARAMETRIC:
-            return std::make_unique<OctreeParametric>(config_.at("acceleratied_data_structure"));
+            return std::make_unique<OctreeParametric>(config_.at("acceleration_data_structure"));
+        case BVH_NAIVE:
+            return std::make_unique<BvhNaive>(config_.at("acceleration_data_structure"));
         default:
             throw std::runtime_error("Unknown ADS!");
     }
@@ -371,6 +373,8 @@ void Renderer::config_setup(const nlohmann::json& config) {
         acceleration_data_structure_ = OCTREE;
     } else if (config.at("acceleratied_data_structure").at("name") == "octee_parametric") {
         acceleration_data_structure_ = OCTREE_PARAMETRIC;
+    } else if (config.at("acceleration_data_structure").at("name") == "bvh_naive") {
+        acceleration_data_structure_ = BVH_NAIVE;
     } else {
         throw std::runtime_error("Invalid data structure");
     }
