@@ -20,7 +20,7 @@ class BvhNaive : public Ads {
     // Represents one node in the BVH tree
     struct BvhNode {
         bool isLeaf;
-        int depth;
+        size_t depth;
         AABB bounding_box;
         std::vector<size_t> triangle_indices;
         std::shared_ptr<BvhNode> left, right;
@@ -30,7 +30,7 @@ class BvhNaive : public Ads {
     struct BvhNaiveStats {
         size_t max_depth;
         float avg_depth;
-        size_t triangles_in_leaf_nodes;
+        size_t max_triangles_in_leaf_nodes;
         float avg_traiangles_in_leaf_nodes;
         size_t nodes_count;
         size_t leaf_nodes_count;

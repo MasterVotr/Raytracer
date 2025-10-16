@@ -107,6 +107,7 @@ void BvhNaive::Build(const std::vector<std::shared_ptr<const Triangle>>& triangl
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
     std::clog << "Naive BVH building time: " << duration / 1000.0 << " seconds" << std::endl;
 }
+
 std::vector<std::shared_ptr<const Triangle>> BvhNaive::Search(const Ray& r, bool first_hit) const {
     // Recursively check if the BVH node collides with the given ray
     // Current BVH node is a leaf -> return triangles
@@ -151,7 +152,70 @@ std::vector<std::shared_ptr<const Triangle>> BvhNaive::Search(const Ray& r, bool
     return result;
 }
 
-void BvhNaive::PrintStats(std::ostream& os) const {}
+void BvhNaive::PrintStats(std::ostream& os) const {
+    auto stats = calculate_stats();
+    os << "BVH stats: " << "\n";
+    os << "  Max depth: " << stats.max_depth << "\n";
+    os << "  Nodes count: " << stats.nodes_count << "\n";
+    os << "  Leaf nodes count: " << stats.leaf_nodes_count << "\n";
+    os << "  Average depth of leaf nodes: " << stats.avg_depth << "\n";
+    os << "  Max triangles in leaf nodes: " << stats.max_triangles_in_leaf_nodes << "\n";
+    os << "  Average triangles in leaf nodes: " << stats.avg_traiangles_in_leaf_nodes << "\n";
+    os << "  Search method call count: " << stats.search_count << "\n";
+    os << "  Search node count: " << stats.search_node_count << "\n";
+    os << "  Search time: " << stats.search_time / 1000000000.0f << " s" << "\n";
+    os << "  Search return count: " << stats.search_return_count << "\n";
+    os << "  Average search return count: " << (float)stats.search_return_count / stats.search_count << "\n";
+    os << "  Search leaves visited: " << stats.search_leaves_visited << "\n";
+}
+
+BvhNaive::BvhNaiveStats BvhNaive::calculate_stats() const {
+    BvhNaiveStats stats;
+    stats.max_depth = 0;
+    int total_leaf_depth = 0;
+    stats.max_triangles_in_leaf_nodes = 0;
+    int total_triangles_in_leaf_nodes = 0;
+    stats.nodes_count = 0;
+    stats.leaf_nodes_count = 0;
+
+    std::stack<std::shared_ptr<BvhNode>> s;
+    s.push(root_);
+
+    while (!s.empty()) {
+        std::shared_ptr<BvhNode> curr_node = s.top();
+        s.pop();
+
+        stats.nodes_count++;
+
+        if (curr_node->isLeaf) {
+            stats.leaf_nodes_count++;
+            stats.max_depth = std::max(stats.max_depth, curr_node->depth);
+            stats.max_triangles_in_leaf_nodes =
+                std::max(stats.max_triangles_in_leaf_nodes, curr_node->triangle_indices.size());
+            total_leaf_depth += curr_node->depth;
+            total_triangles_in_leaf_nodes += curr_node->triangle_indices.size();
+            continue;
+        }
+
+        // Add non empty children to the stack to be processed
+        if (curr_node->left) {
+            s.push(curr_node->left);
+        }
+        if (curr_node->right) {
+            s.push(curr_node->right);
+        }
+    }
+
+    stats.avg_depth = (float)total_leaf_depth / stats.leaf_nodes_count;
+    stats.avg_traiangles_in_leaf_nodes = (float)total_triangles_in_leaf_nodes / stats.leaf_nodes_count;
+    stats.search_count = search_count_;
+    stats.search_node_count = search_node_count_;
+    stats.search_time = search_time_;
+    stats.search_return_count = search_return_count_;
+    stats.search_leaves_visited = search_leaves_visited_;
+
+    return stats;
+}
 
 void BvhNaive::config_setup(const nlohmann::json& config) {
     std::clog << "Configuring naive BVH..." << std::flush;
