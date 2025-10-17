@@ -28,21 +28,34 @@ class BvhNaive : public Ads {
 
     // Helper structure for BVH stats
     struct BvhNaiveStats {
+        // Build stats
+        size_t min_depth;
         size_t max_depth;
         float avg_depth;
+        size_t min_triangles_in_leaf_nodes;
         size_t max_triangles_in_leaf_nodes;
         float avg_traiangles_in_leaf_nodes;
         size_t nodes_count;
         size_t leaf_nodes_count;
+        // Search stats
         size_t search_count;
-        size_t search_node_count;
+        size_t search_min_nodes_visited;
+        size_t search_max_nodes_visited;
+        size_t search_nodes_visited;
+        size_t search_min_return_count;
+        size_t search_max_return_count;
         size_t search_return_count;
+        long long search_min_time;
+        long long search_max_time;
         long long search_time;
+        size_t search_min_leaves_visited;
+        size_t search_max_leaves_visited;
         size_t search_leaves_visited;
     };
 
     void config_setup(const nlohmann::json& config);
     BvhNaiveStats calculate_stats() const;
+    void reset_stats() const;
 
     std::shared_ptr<BvhNode> root_;
 
@@ -51,11 +64,19 @@ class BvhNaive : public Ads {
     size_t max_depth_;
 
     // Statistics variables
-    mutable size_t search_count_ = 0;
-    mutable size_t search_node_count_ = 0;
-    mutable float search_time_ = 0;
-    mutable size_t search_return_count_ = 0;
-    mutable size_t search_leaves_visited_ = 0;
+    mutable size_t search_count_;
+    mutable size_t search_min_nodes_visited_;
+    mutable size_t search_max_nodes_visited_;
+    mutable size_t search_nodes_visited_;
+    mutable size_t search_min_return_count_;
+    mutable size_t search_max_return_count_;
+    mutable size_t search_return_count_;
+    mutable long long search_min_time_;
+    mutable long long search_max_time_;
+    mutable long long search_time_;
+    mutable size_t search_min_leaves_visited_;
+    mutable size_t search_max_leaves_visited_;
+    mutable size_t search_leaves_visited_;
 };
 
 }  // namespace raytracer

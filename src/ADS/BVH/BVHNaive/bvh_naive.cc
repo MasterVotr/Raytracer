@@ -1,16 +1,21 @@
 #include "src/ADS/BVH/BVHNaive/bvh_naive.h"
 
 #include <iostream>
+#include <limits>
 
 #include "src/aabb.h"
 #include "src/collision_detection.h"
 
 namespace raytracer {
 
-BvhNaive::BvhNaive(const nlohmann::json& config) : Ads(config) { config_setup(config); }
+BvhNaive::BvhNaive(const nlohmann::json& config) : Ads(config) {
+    config_setup(config);
+    reset_stats();
+}
 
 void BvhNaive::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles) {
     Ads::Build(triangles);
+    reset_stats();
     std::clog << "Building naive BVH..." << std::flush;
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -118,11 +123,13 @@ void BvhNaive::Build(const std::vector<std::shared_ptr<const Triangle>>& triangl
 
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
-    std::clog << "Naive BVH building time: " << duration / 1000.0 << " ms" << std::endl;
+    std::clog << "\rNaive BVH building time: " << duration / 1000.0 << " ms" << std::endl;
 }
 
 std::vector<std::shared_ptr<const Triangle>> BvhNaive::Search(const Ray& r, bool first_hit) const {
     search_count_++;
+    size_t search_nodes_visited = 0;
+    size_t search_leaves_visited = 0;
     auto start_time = std::chrono::high_resolution_clock::now();
 
     std::vector<std::shared_ptr<const Triangle>> result;
@@ -135,11 +142,11 @@ std::vector<std::shared_ptr<const Triangle>> BvhNaive::Search(const Ray& r, bool
         std::shared_ptr<BvhNode> curr_node = s.top();
         s.pop();
 
-        search_node_count_++;
+        search_nodes_visited++;
 
         // If current node is a leaf, add its triangles to the result
         if (curr_node->isLeaf) {
-            search_leaves_visited_++;
+            search_leaves_visited++;
             for (const auto& t_idx : curr_node->triangle_indices) {
                 result.emplace_back(triangles_[t_idx]);
             }
@@ -159,26 +166,59 @@ std::vector<std::shared_ptr<const Triangle>> BvhNaive::Search(const Ray& r, bool
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count();
     search_time_ += duration;
+    search_min_time_ = std::min(search_min_time_, duration);
+    search_max_time_ = std::max(search_max_time_, duration);
 
+    search_min_nodes_visited_ = std::min(search_min_nodes_visited_, search_nodes_visited);
+    search_max_nodes_visited_ = std::max(search_max_nodes_visited_, search_nodes_visited);
+    search_nodes_visited_ += search_nodes_visited;
+
+    search_min_leaves_visited_ = std::min(search_min_leaves_visited_, search_leaves_visited);
+    search_max_leaves_visited_ = std::max(search_max_leaves_visited_, search_leaves_visited);
+    search_leaves_visited_ += search_leaves_visited;
+
+    search_min_return_count_ = std::min(search_min_return_count_, result.size());
+    search_max_return_count_ = std::max(search_max_return_count_, result.size());
     search_return_count_ += result.size();
+
     return result;
 }
 
 void BvhNaive::PrintStats(std::ostream& os) const {
     auto stats = calculate_stats();
-    os << "BVH stats: " << "\n";
-    os << "  Max depth: " << stats.max_depth << "\n";
+    os << "BVH Build stats: " << "\n";
     os << "  Nodes count: " << stats.nodes_count << "\n";
-    os << "  Leaf nodes count: " << stats.leaf_nodes_count << "\n";
-    os << "  Average depth of leaf nodes: " << stats.avg_depth << "\n";
-    os << "  Max triangles in leaf nodes: " << stats.max_triangles_in_leaf_nodes << "\n";
-    os << "  Average triangles in leaf nodes: " << stats.avg_traiangles_in_leaf_nodes << "\n";
-    os << "  Search method call count: " << stats.search_count << "\n";
-    os << "  Search node count: " << stats.search_node_count << "\n";
-    os << "  Search time: " << stats.search_time / 1000000000.0f << " s" << "\n";
-    os << "  Search return count: " << stats.search_return_count << "\n";
-    os << "  Average search return count: " << (float)stats.search_return_count / stats.search_count << "\n";
-    os << "  Search leaves visited: " << stats.search_leaves_visited << "\n";
+    os << "  Leaf count: " << stats.leaf_nodes_count << "\n";
+    os << "  Leaf depth:\n";
+    os << "   - Min depth: " << stats.min_depth << "\n";
+    os << "   - Max depth: " << stats.max_depth << "\n";
+    os << "   - Avg depth: " << stats.avg_depth << "\n";
+    os << "  Leaf tris:\n";
+    os << "   - Min: " << stats.min_triangles_in_leaf_nodes << "\n";
+    os << "   - Max: " << stats.max_triangles_in_leaf_nodes << "\n";
+    os << "   - Avg: " << stats.avg_traiangles_in_leaf_nodes << "\n";
+    os << "BVH Search stats:\n";
+    os << " - Tatal calls: " << stats.search_count << "\n";
+    os << "  Nodes visited (ray-aabb tests):\n";
+    os << "   - Min: " << stats.search_min_nodes_visited << "\n";
+    os << "   - Max: " << stats.search_max_nodes_visited << "\n";
+    os << "   - Avg: " << (float)stats.search_nodes_visited / stats.search_count << "\n";
+    os << "   - Total: " << stats.search_nodes_visited << "\n";
+    os << "  Leaves visited:\n";
+    os << "   - Min: " << stats.search_min_leaves_visited << "\n";
+    os << "   - Max: " << stats.search_max_leaves_visited << "\n";
+    os << "   - Avg: " << (float)stats.search_leaves_visited / stats.search_count << "\n";
+    os << "   - Total: " << stats.search_leaves_visited << "\n";
+    os << "  Time:\n";
+    os << "   - Min: " << stats.search_min_time / 1000.0f << " µs\n";
+    os << "   - Max: " << stats.search_max_time / 1000.0f << " µs\n";
+    os << "   - Avg: " << (float)stats.search_time / stats.search_count / 1000.0f << " µs\n";
+    os << "   - Total time: " << stats.search_time / 1000000000.0f << " s" << "\n";
+    os << "  Tris returned (ray-tri tests):\n";
+    os << "   - Min: " << stats.search_min_return_count << "\n";
+    os << "   - Max: " << stats.search_max_return_count << "\n";
+    os << "   - Avg: " << (float)stats.search_return_count / stats.search_count << "\n";
+    os << "   - Total tris returned: " << stats.search_return_count << "\n";
 }
 
 BvhNaive::BvhNaiveStats BvhNaive::calculate_stats() const {
@@ -201,11 +241,17 @@ BvhNaive::BvhNaiveStats BvhNaive::calculate_stats() const {
 
         if (curr_node->isLeaf) {
             stats.leaf_nodes_count++;
+
+            stats.min_depth = std::min(stats.max_depth, curr_node->depth);
             stats.max_depth = std::max(stats.max_depth, curr_node->depth);
+            total_leaf_depth += curr_node->depth;
+
+            stats.min_triangles_in_leaf_nodes =
+                std::min(stats.min_triangles_in_leaf_nodes, curr_node->triangle_indices.size());
             stats.max_triangles_in_leaf_nodes =
                 std::max(stats.max_triangles_in_leaf_nodes, curr_node->triangle_indices.size());
-            total_leaf_depth += curr_node->depth;
             total_triangles_in_leaf_nodes += curr_node->triangle_indices.size();
+
             continue;
         }
 
@@ -220,13 +266,41 @@ BvhNaive::BvhNaiveStats BvhNaive::calculate_stats() const {
 
     stats.avg_depth = (float)total_leaf_depth / stats.leaf_nodes_count;
     stats.avg_traiangles_in_leaf_nodes = (float)total_triangles_in_leaf_nodes / stats.leaf_nodes_count;
+
     stats.search_count = search_count_;
-    stats.search_node_count = search_node_count_;
-    stats.search_time = search_time_;
+    stats.search_nodes_visited = search_nodes_visited_;
+    stats.search_min_nodes_visited = search_min_nodes_visited_;
+    stats.search_max_nodes_visited = search_max_nodes_visited_;
+
+    stats.search_min_return_count = search_min_return_count_;
+    stats.search_max_return_count = search_max_return_count_;
     stats.search_return_count = search_return_count_;
+
+    stats.search_min_time = search_min_time_;
+    stats.search_max_time = search_max_time_;
+    stats.search_time = search_time_;
+
+    stats.search_min_leaves_visited = search_min_leaves_visited_;
+    stats.search_max_leaves_visited = search_max_leaves_visited_;
     stats.search_leaves_visited = search_leaves_visited_;
 
     return stats;
+}
+
+void BvhNaive::reset_stats() const {
+    search_count_ = 0;
+    search_nodes_visited_ = 0;
+    search_min_nodes_visited_ = std::numeric_limits<size_t>::max();
+    search_max_nodes_visited_ = 0;
+    search_min_return_count_ = std::numeric_limits<size_t>::max();
+    search_max_return_count_ = 0;
+    search_return_count_ = 0;
+    search_min_time_ = std::numeric_limits<long long>::max();
+    search_max_time_ = 0;
+    search_time_ = 0;
+    search_min_leaves_visited_ = std::numeric_limits<size_t>::max();
+    search_max_leaves_visited_ = 0;
+    search_leaves_visited_ = 0;
 }
 
 void BvhNaive::config_setup(const nlohmann::json& config) {
