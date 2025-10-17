@@ -15,6 +15,7 @@ struct AABB {
     AABB(const Point3& min, const Point3& max) : min(min), max(max), size(abs(max - min)) {}
 
     float volume() const { return (max.x - min.x) * (max.y - min.y) * (max.z - min.z); }
+    Point3 center() const { return min + ((max - min) / 2.0); }
     void expand(const AABB& other) {
         min.x = std::min(min.x, other.min.x);
         min.y = std::min(min.y, other.min.y);
