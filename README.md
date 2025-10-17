@@ -69,7 +69,7 @@ The full report in Czech can be found [here](report/report.pdf).
 - Basic Octree implementation with configurable depth of the tree and triangle count per node.
 - Parametric search Octree implementation. I implemented the algorithm from the research paper **An Efficient Parametric Algorithm for Octree Traversal** by J. Revelles, C. Urena, and M. Lastra.
     - Unfortunately, I wasn't able to make it work completely, but the implementation is still included.
-- Naive BVH implementation is on the **BVH** branch
+- Naive BVH implementation is on this branch
 
 ### Paralelization on GPU
 - I also implemented the Raytracer on the GPU using CUDA.
