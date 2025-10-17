@@ -1,21 +1,33 @@
 # Raytracer
-Raytracer project from the subject NI-PG1 and NI-GPU at CTU Prague 2024/25.
+Raytracer project from the subjects NI-PG1, NI-GPU and NI-MCC at CTU Prague 2024/25.
 
-## Table of Contents
-- [About](#about)
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Examples](#examples)
-- [Possible extensions](#possible-extensions)
+- [Raytracer](#raytracer)
+  - [About](#about)
+    - [Structure](#structure)
+    - [Dependencies](#dependencies)
+  - [Features](#features)
+    - [Raytracing](#raytracing)
+    - [Accelerated data structures](#accelerated-data-structures)
+    - [Paralelization on GPU](#paralelization-on-gpu)
+  - [Installation](#installation)
+    - [Linux](#linux)
+    - [Windows](#windows)
+  - [Usage](#usage)
+    - [Linux](#linux-1)
+    - [Windows](#windows-1)
+  - [Examples](#examples)
+  - [Possible extensions](#possible-extensions)
+    - [New ADS](#new-ads)
+    - [ADS Paralelization](#ads-paralelization)
 
 ## About
 
 **Author: Jakub Votrubec**  
 **Subject teacher NI-PG1: Ing. Radek Richtr, Ph.D.**
 **Subject teacher NI-GPU: doc. Ing. Ivan Šimeček, Ph.D.**
+**Subject teacher NI-MCC: doc. Ing. Ivan Šimeček, Ph.D.**
 
-This project is a raytracer developed as part of the NI-PG1 and NI-GPU course at CTU Prague for the academic year 2024/25. It demonstrates fundamental computer graphics concepts such as ray tracing, shading, and rendering. It also demonstrates the value of acceleration data structures when it comes to optimizing render time. There is also a GPU implementation using CUDA on the **NI-GPU** branch
+This project is a raytracer developed as part of NI-PG1, NI-GPU, NI-MCC courses at CTU Prague for the academic year 2024/25. It demonstrates fundamental computer graphics concepts such as ray tracing, shading, and rendering. It also demonstrates the value of acceleration data structures when it comes to optimizing render time. There is also a GPU implementation using CUDA on the **NI-GPU** branch
 
 The full report in Czech can be found [here](report/report.pdf).
 
@@ -57,6 +69,7 @@ The full report in Czech can be found [here](report/report.pdf).
 - Basic Octree implementation with configurable depth of the tree and triangle count per node.
 - Parametric search Octree implementation. I implemented the algorithm from the research paper **An Efficient Parametric Algorithm for Octree Traversal** by J. Revelles, C. Urena, and M. Lastra.
     - Unfortunately, I wasn't able to make it work completely, but the implementation is still included.
+- Naive BVH implementation is on the **BVH** branch
 
 ### Paralelization on GPU
 - I also implemented the Raytracer on the GPU using CUDA.
