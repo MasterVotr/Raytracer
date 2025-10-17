@@ -150,7 +150,6 @@ std::vector<std::shared_ptr<const Triangle>> BvhNaive::Search(const Ray& r, bool
             for (const auto& t_idx : curr_node->triangle_indices) {
                 result.emplace_back(triangles_[t_idx]);
             }
-            // if (first_hit) { break; } // TODO: test if this makes sense
             continue;
         }
 
