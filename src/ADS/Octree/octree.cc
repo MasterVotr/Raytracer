@@ -180,14 +180,14 @@ void Octree::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
 std::vector<std::shared_ptr<const Triangle>> Octree::Search(const Ray& r, bool first_hit) const {
     search_count_++;
     std::vector<std::shared_ptr<const Triangle>> result;
-    std::queue<std::shared_ptr<OctreeNode>> q;
-    q.push(root);
+    std::stack<std::shared_ptr<OctreeNode>> s;
+    s.push(root);
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    while (!q.empty()) {
-        auto current_node = q.front();
-        q.pop();
+    while (!s.empty()) {
+        auto current_node = s.top();
+        s.pop();
 
         search_node_count_++;
         if (current_node->isLeaf) {
@@ -200,7 +200,7 @@ std::vector<std::shared_ptr<const Triangle>> Octree::Search(const Ray& r, bool f
 
         for (const auto& octane : current_node->octanes) {
             if (octane && !octane->triangle_indices.empty() && collision_ray_aabb(r, octane->bounding_box)) {
-                q.push(octane);
+                s.push(octane);
             }
         }
     }
