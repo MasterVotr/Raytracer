@@ -231,6 +231,7 @@ Scene LoadScene(const nlohmann::json& loader_config, const nlohmann::json& scene
     }
 
     std::clog << "\rTranslating everything to structures done.          " << std::endl;
+    std::clog << "Model has " << scene.GetTriangles().size() << " triangles" << std::endl;
     return scene;
 }
 
