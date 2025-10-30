@@ -42,8 +42,8 @@ class Renderer {
     Ray calculate_reflection_ray(const Ray& r, const Point3& ray_intersection_point, const Vec3& normal) const;
     Ray calculate_refraction_ray(const Ray& r, const Point3& ray_intersection_point, const Vec3& normal,
                                  float ior) const;
-    bool is_shadowed(const std::unique_ptr<Ads>& ads, const Point3& ray_intersection_point,
-                     const Vec3& light_pos) const;
+    bool is_shadowed(const std::unique_ptr<Ads>& ads, const Point3& ray_intersection_point, const Vec3& light_pos,
+                     const Triangle* const hit_triangle) const;
 
     void config_setup(const nlohmann::json& config);
 

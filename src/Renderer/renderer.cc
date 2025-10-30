@@ -218,7 +218,7 @@ Color Renderer::render_local_ilumination(const Scene& scene, const std::unique_p
         Color accumulated_color(0.0);
         for (size_t s = 0; s < samples_per_triangle_; s++) {
             auto p_l = rand_point_on_triangle(*light);
-            bool shadowed = is_shadowed(ads, intersection_point, p_l);
+            bool shadowed = is_shadowed(ads, intersection_point, p_l, &triangle);
             if (!shadowed) {
                 auto& n_l = light->normal;
                 auto d_l = (p_l - intersection_point).normalize();  // normalize
@@ -283,22 +283,22 @@ Color Renderer::render_blinn_phong(const Camera& camera, const Material& materia
     return I_a + I_d + I_s;
 }
 
-bool Renderer::is_shadowed(const std::unique_ptr<Ads>& ads, const Point3& ray_intersection_point,
-                           const Vec3& light_pos) const {
+bool Renderer::is_shadowed(const std::unique_ptr<Ads>& ads, const Point3& ray_intersection_point, const Vec3& light_pos,
+                           const Triangle* const hit_triangle) const {
     auto dist_light = (light_pos - ray_intersection_point).length();
-    auto shadow_ray = Ray(ray_intersection_point, (light_pos - ray_intersection_point).normalize());
+    Vec3 shadow_ray_direction = (light_pos - ray_intersection_point).normalize();
+    auto shadow_ray = Ray(ray_intersection_point, shadow_ray_direction);
     float shadow_t;
     auto triangles = ads->Search(shadow_ray);
 
     auto start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < triangles.size(); i++) {
-        shadow_t = collision_ray_triangle(shadow_ray, *triangles[i], cull_backfaces_);
-        // miss
-        if (shadow_t == infinity || shadow_t < epsilon) {
+        // Do not test for intersection with the triangle we hit
+        if (triangles[i].get() == hit_triangle) {
             continue;
         }
-        // closer hit
-        if (shadow_t < dist_light) {
+        shadow_t = collision_ray_triangle(shadow_ray, *triangles[i], cull_backfaces_);
+        if (shadow_t > epsilon && shadow_t < dist_light) {
             auto end = std::chrono::high_resolution_clock::now();
             ray_trinagle_collision_duration_ +=
                 std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
