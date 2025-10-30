@@ -104,7 +104,7 @@ void BvhNaive::Build(const std::vector<std::shared_ptr<const Triangle>>& triangl
             curr_node->isLeaf = true;
             curr_node->left.reset();
             curr_node->right.reset();
-            std::cerr << "Bad split of a BVH node, (atleast) one node is empty!" << std::endl;
+            // std::cerr << "Bad split of a BVH node, (atleast) one node is empty!" << std::endl;
             continue;
         }
 
@@ -195,7 +195,7 @@ void BvhNaive::PrintStats(std::ostream& os) const {
     os << "  Leaf tris:\n";
     os << "   - Min: " << stats.min_triangles_in_leaf_nodes << "\n";
     os << "   - Max: " << stats.max_triangles_in_leaf_nodes << "\n";
-    os << "   - Avg: " << stats.avg_traiangles_in_leaf_nodes << "\n";
+    os << "   - Avg: " << stats.avg_traiangles_in_leaf_nodes << "\n\n";
     os << "BVH Search stats:\n";
     os << " - Tatal calls: " << stats.search_count << "\n";
     os << "  Nodes visited (ray-aabb tests):\n";
@@ -217,7 +217,7 @@ void BvhNaive::PrintStats(std::ostream& os) const {
     os << "   - Min: " << stats.search_min_return_count << "\n";
     os << "   - Max: " << stats.search_max_return_count << "\n";
     os << "   - Avg: " << (float)stats.search_return_count / stats.search_count << "\n";
-    os << "   - Total tris returned: " << stats.search_return_count << "\n";
+    os << "   - Total tris returned: " << stats.search_return_count << "\n\n";
 }
 
 BvhNaive::BvhNaiveStats BvhNaive::calculate_stats() const {

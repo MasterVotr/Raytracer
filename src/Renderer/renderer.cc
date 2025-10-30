@@ -57,14 +57,14 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
 
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    std::clog << "Rendering time: " << duration / 1000.0 << " s" << std::endl;
-    std::clog << "Ray-triangle collision count: " << ray_trinagle_collision_count_ << std::endl;
-    std::clog << "Average ray-triangle collision count per ray: " << (float)ray_trinagle_collision_count_ / rays.size()
-              << std::endl;
-    std::clog << "Ray-triangle collision duration: " << ray_trinagle_collision_duration_ / 1000000000.0f << " s"
-              << std::endl;
-    std::clog << "Average ray-triangle collision duration per ray: "
-              << (float)ray_trinagle_collision_duration_ / rays.size() / 1000.0f / 1000.0f << " ms" << std::endl;
+    std::clog << "Ray-triangle collisions:\n";
+    std::clog << "  - Avg count per ray: " << (float)ray_trinagle_collision_count_ / rays.size() << "\n";
+    std::clog << "  - Avg duration per ray: " << (float)ray_trinagle_collision_duration_ / rays.size() / 1000.0f
+              << " µs\n";
+    std::clog << "  - Total count: " << ray_trinagle_collision_count_ << "\n";
+    std::clog << "  - Total duration: " << ray_trinagle_collision_duration_ / 1000000000.0f << " s\n";
+    std::clog << "Rendering time: " << duration / 1000.0 << " s\n";
+    std::clog << std::endl;
 
     return img;
 }
