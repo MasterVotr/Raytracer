@@ -9,6 +9,7 @@
 #include "src/ADS/BVH/BVHSeq/bvh_seq.h"
 #include "src/ADS/DummyAds/dummy_ads.h"
 #include "src/ADS/Octree/OctreeParametric/octree_parametric.h"
+#include "src/ADS/Octree/octree.h"
 #include "src/ADS/ads.h"
 #include "src/camera.h"
 #include "src/collision_detection.h"
