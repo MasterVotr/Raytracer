@@ -1,7 +1,7 @@
 
 CXX := g++
+CFLAGSDEBUG := -Wall -Wextra -Wpedantic -fsanitize=address -g
 CFLAGS := -std=c++20 -I.
-CFLAGSDEBUG := $(CFLAGS) -Wall -Wextra -Wpedantic -fsanitize=address -g
 
 SRC_DIR := src
 OBJ_DIR := build
