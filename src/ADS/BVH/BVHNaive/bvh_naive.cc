@@ -136,7 +136,9 @@ std::vector<std::shared_ptr<const Triangle>> BvhNaive::Search(const Ray& r, bool
     result.reserve(max_triangles_per_BB_);
 
     std::stack<std::shared_ptr<BvhNode>> s;
-    s.push(root_);
+    if (collision_ray_aabb(r, root_->bounding_box)) {
+        s.push(root_);
+    }
 
     while (!s.empty()) {
         std::shared_ptr<BvhNode> curr_node = s.top();
