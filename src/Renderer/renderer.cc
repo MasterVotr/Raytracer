@@ -48,6 +48,11 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
             pixel_color += ray_color(scene, ads, jitter_ray);
         }
         pixel_color = pixel_color / (scene.GetCamera().samples_per_pixel);
+        // Gamma correction
+        pixel_color.x /= pixel_color.x + 1.0f;
+        pixel_color.y /= pixel_color.y + 1.0f;
+        pixel_color.z /= pixel_color.z + 1.0f;
+        pixel_color = Color(pow(pixel_color.x, 1.0/2.2), pow(pixel_color.y, 1.0/2.2), pow(pixel_color.z, 1.0/2.2));
         pixel_color = clamp_color(pixel_color);
         img.emplace_back(pixel_color.x);
         img.emplace_back(pixel_color.y);
