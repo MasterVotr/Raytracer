@@ -1,8 +1,10 @@
 #include "src/ADS/BVH/BVHSeq/bvh_seq.h"
 
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 #include <limits>
+#include <stack>
 
 #include "src/aabb.h"
 #include "src/collision_detection.h"
@@ -85,6 +87,7 @@ size_t calculate_best_split_and_bins(size_t& N_L, size_t& N_R, AABB& TB_L, AABB&
     N_Ls[0] = ns[0];
     TB_Ls[0] = bbs[0];
     A_Ls[0] = TB_Ls[0].surface_area();
+
     for (size_t i = 1; i < split_count; i++) {
         N_Ls[i] = N_Ls[i - 1] + ns[i];
         TB_Ls[i] = TB_Ls[i - 1];
@@ -101,6 +104,7 @@ size_t calculate_best_split_and_bins(size_t& N_L, size_t& N_R, AABB& TB_L, AABB&
             ? A_Ls[split_count - 1] * N_Ls[split_count - 1] + A_Rs[split_count - 1] * N_Rs[split_count - 1]
             : infinity;
     size_t best_split = split_count - 1;
+
     for (int i = split_count - 2; i >= 0; i--) {
         N_Rs[i] = N_Rs[i + 1] + ns[i + 1];
         TB_Rs[i] = TB_Rs[i + 1];
@@ -118,6 +122,7 @@ size_t calculate_best_split_and_bins(size_t& N_L, size_t& N_R, AABB& TB_L, AABB&
     N_R = N_Rs[best_split];
     TB_L = TB_Ls[best_split];
     TB_R = TB_Rs[best_split];
+
     return best_split;
 }
 
@@ -260,7 +265,7 @@ void BvhSeq::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
 
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
-    std::clog << "\rSequential BVH building time: " << duration / 1000.0 << " ms" << std::endl;
+    std::cout << "\rSequential BVH building time: " << duration / 1000.0 << " ms" << std::endl;
 }
 
 std::vector<std::shared_ptr<const Triangle>> BvhSeq::Search(const Ray& r, bool first_hit) const {
@@ -362,6 +367,7 @@ void BvhSeq::PrintStats(std::ostream& os) const {
 BvhSeq::BvhSeqStats BvhSeq::calculate_stats() const {
     BvhSeqStats stats;
     stats.max_depth = 0;
+    stats.min_depth = std::numeric_limits<size_t>::max();
     int total_leaf_depth = 0;
     stats.max_triangles_in_leaf_nodes = 0;
     int total_triangles_in_leaf_nodes = 0;

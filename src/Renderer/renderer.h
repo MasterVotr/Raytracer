@@ -27,7 +27,7 @@ class Renderer {
     std::vector<float> RenderScene(const Scene& scene) const;
 
    private:
-    std::unique_ptr<Ads> setup_ads(const Scene& scene) const;
+    std::unique_ptr<Ads> setup_ads() const;
     std::vector<Ray> generate_rays(const Scene& scene) const;
     Color ray_color(const Scene& scene, const std::unique_ptr<Ads>& ads, Ray& r, int depth = 0) const;
     Color render_distance(float t_pixel, float t_max) const;

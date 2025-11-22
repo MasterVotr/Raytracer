@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "include/json.hpp"
+#include "renderer.h"
 #include "src/ADS/BVH/BVHNaive/bvh_naive.h"
 #include "src/ADS/BVH/BVHSeq/bvh_seq.h"
 #include "src/ADS/DummyAds/dummy_ads.h"
@@ -32,7 +33,7 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
     auto start_time = std::chrono::high_resolution_clock::now();
 
     std::vector<Ray> rays = generate_rays(scene);
-    std::unique_ptr<Ads> ads = setup_ads(scene);
+    std::unique_ptr<Ads> ads = setup_ads();
     ads->Build(scene.GetTriangles());
 
     for (size_t r = 0; r < rays.size(); r++) {
@@ -41,7 +42,7 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
         }
 
         Color pixel_color = ray_color(scene, ads, rays[r]);
-        for (size_t i = 0; i < scene.GetCamera().samples_per_pixel - 1; i++) {
+        for (int i = 0; i < scene.GetCamera().samples_per_pixel - 1; i++) {
             float x_jitter = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 0.001f;
             float y_jitter = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 0.001f;
             Ray jitter_ray(rays[r].origin(), rays[r].direction() + Vec3(x_jitter, y_jitter, 0.0f));
@@ -52,7 +53,8 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
         pixel_color.x /= pixel_color.x + 1.0f;
         pixel_color.y /= pixel_color.y + 1.0f;
         pixel_color.z /= pixel_color.z + 1.0f;
-        pixel_color = Color(pow(pixel_color.x, 1.0/2.2), pow(pixel_color.y, 1.0/2.2), pow(pixel_color.z, 1.0/2.2));
+        pixel_color =
+            Color(pow(pixel_color.x, 1.0 / 2.2), pow(pixel_color.y, 1.0 / 2.2), pow(pixel_color.z, 1.0 / 2.2));
         pixel_color = clamp_color(pixel_color);
         img.emplace_back(pixel_color.x);
         img.emplace_back(pixel_color.y);
@@ -60,23 +62,23 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
     }
     std::clog << "\rRendering done               " << std::endl;
 
-    ads->PrintStats(std::clog);
+    ads->PrintStats(std::cout);
 
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
-    std::clog << "Ray-triangle collisions:\n";
-    std::clog << "  - Avg count per ray: " << (float)ray_trinagle_collision_count_ / rays.size() << "\n";
-    std::clog << "  - Avg duration per ray: " << (float)ray_trinagle_collision_duration_ / rays.size() / 1000.0f
+    std::cout << "Ray-triangle collisions:\n";
+    std::cout << "  - Avg count per ray: " << (float)ray_trinagle_collision_count_ / rays.size() << "\n";
+    std::cout << "  - Avg duration per ray: " << (float)ray_trinagle_collision_duration_ / rays.size() / 1000.0f
               << " µs\n";
-    std::clog << "  - Total count: " << ray_trinagle_collision_count_ << "\n";
-    std::clog << "  - Total duration: " << ray_trinagle_collision_duration_ / 1000000000.0f << " s\n";
-    std::clog << "Rendering time: " << duration / 1000.0 << " s\n";
-    std::clog << std::endl;
+    std::cout << "  - Total count: " << ray_trinagle_collision_count_ << "\n";
+    std::cout << "  - Total duration: " << ray_trinagle_collision_duration_ / 1000000000.0f << " s\n";
+    std::cout << "Rendering time: " << duration / 1000.0 << " s\n";
+    std::cout << std::endl;
 
     return img;
 }
 
-std::unique_ptr<Ads> Renderer::setup_ads(const Scene& scene) const {
+std::unique_ptr<Ads> Renderer::setup_ads() const {
     switch (acceleration_data_structure_) {
         case NONE:
             return std::make_unique<DummyAds>(config_.at("acceleration_data_structure"));
@@ -225,7 +227,7 @@ Color Renderer::render_local_ilumination(const Scene& scene, const std::unique_p
         }
         auto S_l = calculate_triangle_area(*light);
         Color accumulated_color(0.0);
-        for (size_t s = 0; s < samples_per_triangle_; s++) {
+        for (int s = 0; s < samples_per_triangle_; s++) {
             auto p_l = rand_point_on_triangle(*light);
             bool shadowed = is_shadowed(ads, intersection_point, p_l, &triangle);
             if (!shadowed) {

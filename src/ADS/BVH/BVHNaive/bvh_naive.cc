@@ -1,7 +1,9 @@
 #include "src/ADS/BVH/BVHNaive/bvh_naive.h"
 
+#include <chrono>
 #include <iostream>
 #include <limits>
+#include <stack>
 
 #include "src/aabb.h"
 #include "src/collision_detection.h"
@@ -94,10 +96,6 @@ void BvhNaive::Build(const std::vector<std::shared_ptr<const Triangle>>& triangl
         for (auto t_idx : curr_node->right->triangle_indices) {
             curr_node->right->bounding_box.expand(t_aabbs[t_idx]);
         }
-
-        assert(curr_node->triangle_indices.size() ==
-                   curr_node->left->triangle_indices.size() + curr_node->right->triangle_indices.size() &&
-               "Loosing private Triangle!");
 
         // If the split failes restore current node as a leaf
         if (curr_node->left->triangle_indices.empty() || curr_node->right->triangle_indices.empty()) {

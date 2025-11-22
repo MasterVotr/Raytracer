@@ -14,10 +14,10 @@ struct AABB {
     AABB() = default;
     AABB(const Point3& min, const Point3& max) : min(min), max(max), size(abs(max - min)) {}
 
-    float volume() const { return size.x * size.y * size.z; }
-    Point3 center() const { return min + (size / 2.0); }
-    float surface_area() const { return 2.0f * (size.x * size.y + size.y * size.z + size.x * size.z); }
-    void expand(const AABB& other) {
+    inline float volume() const { return size.x * size.y * size.z; }
+    inline Point3 center() const { return min + (size / 2.0); }
+    inline float surface_area() const { return 2.0f * (size.x * size.y + size.y * size.z + size.x * size.z); }
+    inline void expand(const AABB& other) {
         min.x = std::min(min.x, other.min.x);
         min.y = std::min(min.y, other.min.y);
         min.z = std::min(min.z, other.min.z);
@@ -26,7 +26,7 @@ struct AABB {
         max.z = std::max(max.z, other.max.z);
         size = max - min;
     }
-    void expand(const Point3& point) {
+    inline void expand(const Point3& point) {
         min.x = std::min(min.x, point.x);
         min.y = std::min(min.y, point.y);
         min.z = std::min(min.z, point.z);

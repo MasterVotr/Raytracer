@@ -7,7 +7,7 @@ namespace raytracer {
 
 // Constants
 const float epsilon = 1e-9;  // Small value
-const float infinity = std::numeric_limits<float>::infinity();
+const float infinity = std::numeric_limits<float>::max();
 
 // Utility functions
 template <typename T>
