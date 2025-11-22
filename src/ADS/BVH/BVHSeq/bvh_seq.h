@@ -46,9 +46,9 @@ class BvhSeq : public Ads {
         size_t search_min_return_count;
         size_t search_max_return_count;
         size_t search_return_count;
-        long long search_min_time;
-        long long search_max_time;
-        long long search_time;
+        long search_min_time;
+        long search_max_time;
+        long search_time;
         size_t search_min_leaves_visited;
         size_t search_max_leaves_visited;
         size_t search_leaves_visited;
@@ -73,9 +73,9 @@ class BvhSeq : public Ads {
     mutable size_t search_min_return_count_;
     mutable size_t search_max_return_count_;
     mutable size_t search_return_count_;
-    mutable long long search_min_time_;
-    mutable long long search_max_time_;
-    mutable long long search_time_;
+    mutable long search_min_time_;
+    mutable long search_max_time_;
+    mutable long search_time_;
     mutable size_t search_min_leaves_visited_;
     mutable size_t search_max_leaves_visited_;
     mutable size_t search_leaves_visited_;

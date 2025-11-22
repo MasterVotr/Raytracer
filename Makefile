@@ -1,7 +1,9 @@
 
 CXX := g++
-CFLAGSDEBUG := -Wall -Wextra -Wpedantic -fsanitize=address -g
-CFLAGS := -std=c++20 -I.
+CFLAGSDEBUG := -Wall -Wextra -pedantic -fsanitize=address -g
+CFLAGSVECTORIZATION := -ftree-vectorize -fopt-info-vec -fopt-info-vec-missed
+CFLAGSOPTIMIZATION := -fopenmp -O3 -ffast-math -march=native -funroll-loops
+CFLAGS := $(CFLAGSOPTIMIZATION) -std=c++20 -I.
 
 SRC_DIR := src
 OBJ_DIR := build
