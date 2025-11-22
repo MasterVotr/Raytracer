@@ -21,8 +21,8 @@ class BvhSeq : public Ads {
     struct BvhNode {
         size_t depth = 0;
         AABB bounding_box;
-        size_t triangle_indices_begin = 0;
-        size_t triangle_count = 0;
+        size_t t_begin = 0;
+        size_t t_count = 0;
         size_t left_child_idx = 0;
         size_t right_child_idx = 0;
     };
@@ -58,7 +58,8 @@ class BvhSeq : public Ads {
     BvhSeqStats calculate_stats() const;
     void reset_stats() const;
 
-    std::vector<BvhNode> nodes;  // root node at idx 0, child nodes are parent node_idx*2+1 and node_idx*2+2
+    std::vector<BvhNode> nodes_;  // root node at idx 0, child nodes are parent node_idx*2+1 and node_idx*2+2
+    std::vector<size_t> triangle_indices_;
 
     // Config variables
     size_t max_triangles_per_BB_;

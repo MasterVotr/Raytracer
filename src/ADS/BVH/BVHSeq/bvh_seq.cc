@@ -22,12 +22,12 @@ namespace {
     k_1 = (K * (1 - epsilon)) / (cb_max_k - cb_min_k)
     binID_i = k_1 * (c_i_k - k_0)
 */
-std::vector<size_t> calculate_bin_ids(const AABB& vb, const AABB& cb, const std::vector<Point3>& cs, size_t K,
-                                      size_t t_begin, size_t t_count) {
+std::vector<size_t> calculate_bin_ids(const AABB& cb, const std::vector<size_t>& triangle_indices,
+                                      const std::vector<Point3>& cs, size_t K, size_t t_begin, size_t t_count) {
     int k = 0;
-    if (vb.size.x >= vb.size.y && vb.size.x >= vb.size.z) {
+    if (cb.size.x >= cb.size.y && cb.size.x >= cb.size.z) {
         k = 0;
-    } else if (vb.size.y >= vb.size.z) {
+    } else if (cb.size.y >= cb.size.z) {
         k = 1;
     } else {
         k = 2;
@@ -42,14 +42,13 @@ std::vector<size_t> calculate_bin_ids(const AABB& vb, const AABB& cb, const std:
     }
 
     float k_0 = cb.min[k];
-    float k_1 = K / cb.size[k];
+    float k_1 = K * (1 - 1e-3) / cb.size[k];  // Possible problem with bin_idx being K - epsilon was too big
 
-    std::for_each(cs.begin() + t_begin, cs.begin() + t_begin + t_count, [&](const auto& c) {
-        size_t bin_idx = static_cast<size_t>(k_1 * (c[k] - k_0));
-        binIDs.emplace_back(std::min(bin_idx, K - 1));
-    });
-    // std::clog << "t_begin=" << t_begin << ", t_count=" << t_count << ", binIDs=" << binIDs << std::endl;
-    // assert(binIDs.size() == t_count && "BinID count does not match the triangle count");
+    for (size_t i = 0; i < t_count; ++i) {
+        size_t tri_idx = triangle_indices[i + t_begin];
+        size_t bin_idx = static_cast<size_t>(k_1 * (cs[tri_idx][k] - k_0));
+        binIDs.emplace_back(bin_idx);
+    }
 
     return binIDs;
 }
@@ -67,12 +66,14 @@ std::vector<size_t> calculate_bin_ids(const AABB& vb, const AABB& cb, const std:
     cost_j - const of split j - A_L_j * N_L_j + A_R_j * N_R_j
 */
 size_t calculate_best_split_and_bins(size_t& N_L, size_t& N_R, AABB& TB_L, AABB& TB_R, const std::vector<AABB>& tbs,
-                                     const std::vector<size_t>& binIDs, size_t K, size_t t_begin, size_t t_count) {
+                                     const std::vector<size_t>& triangle_indices, const std::vector<size_t>& binIDs,
+                                     size_t K, size_t t_begin, size_t t_count) {
     std::vector<size_t> ns(K, 0);
     std::vector<AABB> bbs(K, AABB(infinity, -infinity));
     for (size_t i = 0; i < t_count; i++) {
         ns[binIDs[i]]++;
-        bbs[binIDs[i]].expand(tbs[i + t_begin]);
+        size_t tri_idx = triangle_indices[i + t_begin];
+        bbs[binIDs[i]].expand(tbs[tri_idx]);
     }
 
     size_t split_count = K - 1;
@@ -144,17 +145,12 @@ void BvhSeq::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         return;
     }
 
-    /*  TODO: SSE operations - store all 3D positions as four 16-bytes aligned floats
-            3x load - triangles verices
-            2x min + 2x max - triangles aabbs
-            min + max - grow voxel aabb
-            add + mul - triangles centroids
-            min + max - grow centroid aabb
-            3x write - trinagles aabbs and centroids
-    */
     //  Initial Setup
     size_t n = triangles_.size();
-    nodes = std::vector<BvhNode>(2 * n - 1);
+    nodes_.resize(2 * n - 1);
+    triangle_indices_.resize(n);
+    std::iota(triangle_indices_.begin(), triangle_indices_.end(), 0);
+
     std::vector<AABB> tbs;  // triangle AABBS
     tbs.reserve(n);
     std::vector<Point3> cs;  // triangle centroids
@@ -184,40 +180,34 @@ void BvhSeq::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         auto [node_idx, depth, vb, cb, t_begin, t_count] = s.top();
         s.pop();
 
-        // std::clog << "(node_idx=" << node_idx << ") t_begin=" << t_begin << ", t_count=" << t_count << std::endl;
-        // assert(node_idx < nodes.size() && "Max number of nodes reached");
-
-        nodes[node_idx].depth = depth;
-        nodes[node_idx].bounding_box = vb;
-        nodes[node_idx].triangle_indices_begin = t_begin;
-        nodes[node_idx].triangle_count = 0;
+        nodes_[node_idx].depth = depth;
+        nodes_[node_idx].bounding_box = vb;
+        nodes_[node_idx].t_begin = t_begin;
+        nodes_[node_idx].t_count = 0;
         // Node becomes a leaf if termination conditions are met -> the recursion stops
         bool cb_too_small = cb.size.x < epsilon && cb.size.y < epsilon && cb.size.z < epsilon;
-        if (t_count < max_triangles_per_BB_ || nodes[node_idx].depth >= max_depth_ || cb_too_small) {
-            // std::clog << " - Creating a leaf (depth=" << depth << ", t_count=" << t_count << ", cb_too_small=" <<
-            // cb_too_small << std::endl;
-            nodes[node_idx].triangle_count = t_count;
+        if (t_count < max_triangles_per_BB_ || nodes_[node_idx].depth >= max_depth_ || cb_too_small) {
+            nodes_[node_idx].t_count = t_count;
             continue;
         }
 
-        std::vector<size_t> binIDs = calculate_bin_ids(vb, cb, cs, bin_count_, t_begin, t_count);
-        // std::clog << "(node_idx=" << node_idx << ") binIDS: " << binIDs << std::endl;
+        std::vector<size_t> binIDs = calculate_bin_ids(cb, triangle_indices_, cs, bin_count_, t_begin, t_count);
         size_t N_L, N_R;  // child triangle counts
         AABB TB_L, TB_R;  // child triangle bounds
         AABB CB_L, CB_R;  // child centroid bounds
-        size_t best_split =
-            calculate_best_split_and_bins(N_L, N_R, TB_L, TB_R, tbs, binIDs, bin_count_, t_begin, t_count);
-        // std::clog << "  - N_L = " << N_L << "\n";
-        // std::clog << "  - N_R = " << N_R << "\n";
-        // std::clog << "  - TB_L = " << TB_L << "\n";
-        // std::clog << "  - TB_R = " << TB_R << "\n";
-        // std::clog << "  - best_split = " << best_split << "\n";
+        size_t best_split = calculate_best_split_and_bins(N_L, N_R, TB_L, TB_R, tbs, triangle_indices_, binIDs,
+                                                          bin_count_, t_begin, t_count);
+
+        // Bin comparison print
+        // std::cout << "Node " << node_idx << " depth=" << depth << " t_begin=" << t_begin << " t_count=" << t_count
+        //           << " best_split=" << best_split << " N_L=" << N_L << " N_R=" << N_R << " binIDs=[";
+        // for (size_t i = 0; i < std::min<size_t>(t_count, 10); ++i)  // print first 10 binIDs
+        //     std::cout << binIDs[i] << " ";
+        // std::cout << "]\n";
 
         // If the split fails make current node as a leaf
         if (N_L == 0 || N_R == 0) {
-            nodes[node_idx].triangle_count = t_count;
-            // std::clog << "Splitting failed N_L=" << N_L << ", N_R=" << N_R << ", best_split=" << best_split <<
-            // std::endl;
+            nodes_[node_idx].t_count = t_count;
             continue;
         }
 
@@ -239,26 +229,27 @@ void BvhSeq::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
                 r--;
             }
             if (l < r) {
-                std::swap(triangles_[l], triangles_[r]);
-                std::swap(tbs[l], tbs[r]);
-                std::swap(cs[l], cs[r]);
-                std::swap(binIDs[l - t_begin], binIDs[r - t_begin]);
+                std::swap(triangle_indices_[l], triangle_indices_[r]);
+                l++;
+                r--;
             }
         }
 
         // Calculate centroid bounds for children.
         for (size_t i = t_begin; i < t_begin + N_L; ++i) {
-            CB_L.expand(cs[i]);
+            size_t tri_idx = triangle_indices_[i];
+            CB_L.expand(cs[tri_idx]);
         }
         for (size_t i = t_begin + N_L; i < t_begin + t_count; ++i) {
-            CB_R.expand(cs[i]);
+            size_t tri_idx = triangle_indices_[i];
+            CB_R.expand(cs[tri_idx]);
         }
 
         // Push children
         size_t left_child_idx = next_free_node_idx++;
         size_t right_child_idx = next_free_node_idx++;
-        nodes[node_idx].left_child_idx = left_child_idx;
-        nodes[node_idx].right_child_idx = right_child_idx;
+        nodes_[node_idx].left_child_idx = left_child_idx;
+        nodes_[node_idx].right_child_idx = right_child_idx;
         s.push({left_child_idx, depth + 1, TB_L, CB_L, t_begin, N_L});
         s.push({right_child_idx, depth + 1, TB_R, CB_R, t_begin + N_L, N_R});
     }
@@ -278,7 +269,7 @@ std::vector<std::shared_ptr<const Triangle>> BvhSeq::Search(const Ray& r, bool f
     result.reserve(max_triangles_per_BB_);
 
     std::stack<size_t> s;
-    if (collision_ray_aabb(r, nodes[0].bounding_box)) {
+    if (collision_ray_aabb(r, nodes_[0].bounding_box)) {
         s.push(0);
     }
     while (!s.empty()) {
@@ -288,20 +279,22 @@ std::vector<std::shared_ptr<const Triangle>> BvhSeq::Search(const Ray& r, bool f
         search_nodes_visited++;
 
         // If node is a leaf, add trinagles and stop recursion
-        if (nodes[node_idx].triangle_count) {
+        if (nodes_[node_idx].t_count) {
             search_leaves_visited++;
-            result.insert(result.end(), triangles_.begin() + nodes[node_idx].triangle_indices_begin,
-                          triangles_.begin() + nodes[node_idx].triangle_indices_begin + nodes[node_idx].triangle_count);
+            for (size_t i = 0; i < nodes_[node_idx].t_count; i++) {
+                size_t tri_idx = triangle_indices_[nodes_[node_idx].t_begin + i];
+                result.emplace_back(triangles_[tri_idx]);
+            }
             continue;
         }
 
         // Push children
-        size_t left_child_idx = nodes[node_idx].left_child_idx;
-        size_t right_child_idx = nodes[node_idx].right_child_idx;
-        if (collision_ray_aabb(r, nodes[left_child_idx].bounding_box)) {
+        size_t left_child_idx = nodes_[node_idx].left_child_idx;
+        size_t right_child_idx = nodes_[node_idx].right_child_idx;
+        if (collision_ray_aabb(r, nodes_[left_child_idx].bounding_box)) {
             s.push(left_child_idx);
         }
-        if (collision_ray_aabb(r, nodes[right_child_idx].bounding_box)) {
+        if (collision_ray_aabb(r, nodes_[right_child_idx].bounding_box)) {
             s.push(right_child_idx);
         }
     }
@@ -383,24 +376,22 @@ BvhSeq::BvhSeqStats BvhSeq::calculate_stats() const {
         stats.nodes_count++;
 
         // If node is a leaf, add trinagles and stop recursion
-        if (nodes[node_idx].triangle_count) {
+        if (nodes_[node_idx].t_count) {
             stats.leaf_nodes_count++;
 
-            stats.min_depth = std::min(stats.max_depth, nodes[node_idx].depth);
-            stats.max_depth = std::max(stats.max_depth, nodes[node_idx].depth);
-            total_leaf_depth += nodes[node_idx].depth;
+            stats.min_depth = std::min(stats.min_depth, nodes_[node_idx].depth);
+            stats.max_depth = std::max(stats.max_depth, nodes_[node_idx].depth);
+            total_leaf_depth += nodes_[node_idx].depth;
 
-            stats.min_triangles_in_leaf_nodes =
-                std::min(stats.min_triangles_in_leaf_nodes, nodes[node_idx].triangle_count);
-            stats.max_triangles_in_leaf_nodes =
-                std::max(stats.max_triangles_in_leaf_nodes, nodes[node_idx].triangle_count);
-            total_triangles_in_leaf_nodes += nodes[node_idx].triangle_count;
+            stats.min_triangles_in_leaf_nodes = std::min(stats.min_triangles_in_leaf_nodes, nodes_[node_idx].t_count);
+            stats.max_triangles_in_leaf_nodes = std::max(stats.max_triangles_in_leaf_nodes, nodes_[node_idx].t_count);
+            total_triangles_in_leaf_nodes += nodes_[node_idx].t_count;
             continue;
         }
 
         // Push children
-        size_t left_child_idx = nodes[node_idx].left_child_idx;
-        size_t right_child_idx = nodes[node_idx].right_child_idx;
+        size_t left_child_idx = nodes_[node_idx].left_child_idx;
+        size_t right_child_idx = nodes_[node_idx].right_child_idx;
         if (left_child_idx) {
             s.push(left_child_idx);
         }
