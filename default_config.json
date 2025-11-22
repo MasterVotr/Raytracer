@@ -20,7 +20,7 @@
             0.01
         ],
         "acceleration_data_structure": {
-            "name": "bvh_seq",
+            "name": "bvh_vec",
             "max_triangles_per_BB": 4,
             "max_depth": 32,
             "bin_count": 16
