@@ -285,21 +285,17 @@ void BvhVec::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         return;
     }
 
-    /*  TODO: AoS -> SoA
+    /*  AoS -> SoA
             Point3 -> 4x 16 bytes float (1 empty)
             Triangle -> 3 x Point3
             AABB -> 2x Point3
-        TODO: SSE vectorization - store all 3D positions as four 16-bytes aligned floats
+
             3x load - triangles vertices
             2x min + 2x max - triangles aabbs
             min + max - grow voxel aabb
             add + mul - triangles centroids
             min + max - grow centroid aabb
             3x write - trinagles aabbs and centroids
-        TODO: naive parallelization with openMP
-            stack-while - task prallization schedule dynamic
-        TODO: improved parallelization with openMP
-            different approaches for top and bottom of the tree
     */
     //  Initial Setup
     size_t n = triangles_.size();
@@ -556,7 +552,6 @@ void BvhVec::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         }
 
         // Calculate centroid bounds for children.
-        // TODO: Check if this loop gets vectorized or not
         AABB CB_L, CB_R;  // child centroid bounds
         float CB_L_min_x = infinity;
         float CB_L_min_y = infinity;
