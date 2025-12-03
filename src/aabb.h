@@ -11,7 +11,7 @@ struct AABB {
     Point3 max;
     Vec3 size;
 
-    AABB() = default;
+    AABB() : min(infinity, infinity, infinity), max(-infinity, -infinity, -infinity) {}
     AABB(const Point3& min, const Point3& max) : min(min), max(max), size(abs(max - min)) {}
 
     inline float volume() const { return size.x * size.y * size.z; }
