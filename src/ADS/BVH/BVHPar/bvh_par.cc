@@ -138,7 +138,7 @@ std::vector<int> calculate_bin_ids(const AABB& cb, const PointSoA& cs, const std
 #if defined(__x86_64__) || defined(_M_X64)
     size_t i = 0;
     const __m256 k0_vec = _mm256_set1_ps(k_0);
-    const __m256 k1_vec = _mm256_set1_ps(k_1);zz
+    const __m256 k1_vec = _mm256_set1_ps(k_1);
     // Process 8 elements at a time
     for (; i + 7 < t_count; i += 8) {
         // binID_i = k_1 * (c_i_k - k_0)
@@ -183,6 +183,97 @@ std::vector<int> calculate_bin_ids(const AABB& cb, const PointSoA& cs, const std
         int bin_idx = static_cast<int>(k_1 * (cs_k[tri_idx] - k_0));
         binIDs_ptr[i] = std::min(bin_idx, K - 1);
     }
+
+    return binIDs;
+}
+
+std::vector<int> calculate_bin_ids_par(const AABB& cb, const PointSoA& cs, const std::vector<size_t>& triangle_indices,
+                                       int K, size_t t_begin, size_t t_count) {
+    int k = 0;
+    const float* __restrict__ cs_k;
+    if (cb.size.x >= cb.size.y && cb.size.x >= cb.size.z) {
+        k = 0;
+        cs_k = cs.x.data();
+    } else if (cb.size.y >= cb.size.z) {
+        k = 1;
+        cs_k = cs.y.data();
+    } else {
+        k = 2;
+        cs_k = cs.z.data();
+    }
+
+    if (cb.size[k] < epsilon) {
+        return std::vector<int>(t_count, 0);
+    }
+
+    std::vector<int> binIDs(t_count);
+    int* __restrict__ binIDs_ptr = binIDs.data();
+
+    float k_0 = cb.min[k];
+    float k_1 = K * (1 - 1e-3) / cb.size[k];  // Possible problem with bin_idx being K - epsilon was too big
+
+#if defined(__x86_64__) || defined(_M_X64)
+    size_t i = 0;
+    const __m256 k0_vec = _mm256_set1_ps(k_0);
+    const __m256 k1_vec = _mm256_set1_ps(k_1);
+    size_t simd_limit = t_count - (t_count % 8);
+// Process 8 elements at a time
+#pragma omp parallel for schedule(static)
+    for (size_t i = 0; i < simd_limit; i += 8) {
+        // binID_i = k_1 * (c_i_k - k_0)
+        const size_t* tri_idx = &triangle_indices[i + t_begin];
+        __m256 centroids = _mm256_i32gather_ps(cs_k, _mm256_loadu_si256((const __m256i*)tri_idx), 4);
+        __m256 diff = _mm256_sub_ps(centroids, k0_vec);
+        __m256 scaled = _mm256_mul_ps(diff, k1_vec);
+
+        // Convert to int (truncation)
+        __m256i bin_indices = _mm256_cvtps_epi32(scaled);
+
+        // Store results
+        _mm256_storeu_si256((__m256i*)&binIDs_ptr[i], bin_indices);
+    }
+    for (size_t i = simd_limit; i < t_count; i++) {
+        size_t tri_idx = triangle_indices[i + t_begin];
+        // assert(tri_idx < cs.x.size());
+        int bin_idx = static_cast<int>(k_1 * (cs_k[tri_idx] - k_0));
+        binIDs_ptr[i] = std::min(bin_idx, K - 1);
+    }
+#elif defined(__aarch64__)
+    size_t i = 0;
+    const float32x4_t k0_vec = vdupq_n_f32(k_0);
+    const float32x4_t k1_vec = vdupq_n_f32(k_1);
+    size_t simd_limit = t_count - (t_count % 4);
+// Process 4 elements at a time
+#pragma omp parallel for schedule(static)
+    for (size_t i = 0; i < simd_limit; i += 4) {
+        // binID_i = k_1 * (c_i_k - k_0)
+        float32x4_t centroids = {cs_k[triangle_indices[i + t_begin + 0]], cs_k[triangle_indices[i + t_begin + 1]],
+                                 cs_k[triangle_indices[i + t_begin + 2]], cs_k[triangle_indices[i + t_begin + 3]]};
+        float32x4_t diff = vsubq_f32(centroids, k0_vec);
+        float32x4_t scaled = vmulq_f32(diff, k1_vec);
+
+        // Convert to int (truncation)
+        int32x4_t bin_indices = vcvtq_s32_f32(scaled);
+
+        // Store result
+        vst1q_s32(&binIDs_ptr[i], bin_indices);
+    }
+    // Process remaining elements
+    for (size_t i = simd_limit; i < t_count; i++) {
+        size_t tri_idx = triangle_indices[i + t_begin];
+        // assert(tri_idx < cs.x.size());
+        int bin_idx = static_cast<int>(k_1 * (cs_k[tri_idx] - k_0));
+        binIDs_ptr[i] = std::min(bin_idx, K - 1);
+    }
+#else
+#pragma omp parallel for schedule(static)
+    for (size_t i = 0; i < t_count; i++) {
+        size_t tri_idx = triangle_indices[i + t_begin];
+        // assert(tri_idx < cs.x.size());
+        int bin_idx = static_cast<int>(k_1 * (cs_k[tri_idx] - k_0));
+        binIDs_ptr[i] = std::min(bin_idx, K - 1);
+    }
+#endif
 
     return binIDs;
 }
@@ -515,7 +606,12 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         }
 
         auto start_time_tmp = std::chrono::high_resolution_clock::now();
-        std::vector<int> binIDs = calculate_bin_ids(cb, cs, triangle_indices_, bin_count_, t_begin, t_count);
+        std::vector<int> binIDs;
+        if (t_count > horizontal_threshold_) {
+            binIDs = calculate_bin_ids_par(cb, cs, triangle_indices_, bin_count_, t_begin, t_count);
+        } else {
+            binIDs = calculate_bin_ids(cb, cs, triangle_indices_, bin_count_, t_begin, t_count);
+        }
         auto end_time_tmp = std::chrono::high_resolution_clock::now();
         calculate_bin_ids_duration +=
             std::chrono::duration_cast<std::chrono::nanoseconds>(end_time_tmp - start_time_tmp).count();
@@ -836,6 +932,7 @@ void BvhPar::config_setup(const nlohmann::json& config) {
     max_triangles_per_BB_ = config.at("max_triangles_per_BB");
     max_depth_ = config.at("max_depth");
     bin_count_ = config.at("bin_count");
+    horizontal_threshold_ = config.at("horizontal_threshold");
 
     std::clog << "\rVectorized BVH configured     " << std::endl;
 }
