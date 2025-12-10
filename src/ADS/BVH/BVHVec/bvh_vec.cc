@@ -279,6 +279,10 @@ void BvhVec::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
     reset_stats();
     std::clog << "Building vectorized BVH..." << std::flush;
     auto start_time = std::chrono::high_resolution_clock::now();
+    int64_t calculate_bin_ids_duration = 0;
+    int64_t calculate_best_split_and_bins_duration = 0;
+    int64_t rearange_triangles_duration = 0;
+    int64_t calculate_centroids_duration = 0;
 
     if (triangles_.empty()) {
         std::cerr << "No triangles to build a BVH." << std::endl;
@@ -478,6 +482,9 @@ void BvhVec::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
     AABB vb({vb_min_x, vb_min_y, vb_min_z}, {vb_max_x, vb_max_y, vb_max_z});
     AABB cb({cb_min_x, cb_min_y, cb_min_z}, {cb_max_x, cb_max_y, cb_max_z});
 
+    auto init_done_time = std::chrono::high_resolution_clock::now();
+    auto init_duration = std::chrono::duration_cast<std::chrono::microseconds>(init_done_time - start_time).count();
+
     struct StackElem {
         size_t node_idx;
         size_t depth;
@@ -489,7 +496,9 @@ void BvhVec::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
 
     size_t next_free_node_idx = 0;
     std::stack<StackElem> s;
-    s.push({next_free_node_idx++, 0, vb, cb, 0, n});
+    s.emplace(next_free_node_idx++, 0, vb, cb, 0, n);
+
+    auto build_loop_start = std::chrono::high_resolution_clock::now();
     while (!s.empty()) {
         auto [node_idx, depth, vb, cb, t_begin, t_count] = s.top();
         s.pop();
@@ -505,11 +514,21 @@ void BvhVec::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
             continue;
         }
 
+        auto start_time_tmp = std::chrono::high_resolution_clock::now();
         std::vector<int> binIDs = calculate_bin_ids(cb, cs, triangle_indices_, bin_count_, t_begin, t_count);
+        auto end_time_tmp = std::chrono::high_resolution_clock::now();
+        calculate_bin_ids_duration +=
+            std::chrono::duration_cast<std::chrono::nanoseconds>(end_time_tmp - start_time_tmp).count();
+
         size_t N_L, N_R;  // child triangle counts
         AABB TB_L, TB_R;  // child triangle bounds
+
+        start_time_tmp = std::chrono::high_resolution_clock::now();
         size_t best_split = calculate_best_split_and_bins(binning_buffers, N_L, N_R, TB_L, TB_R, tbs, triangle_indices_,
                                                           binIDs, bin_count_, t_begin, t_count);
+        end_time_tmp = std::chrono::high_resolution_clock::now();
+        calculate_best_split_and_bins_duration +=
+            std::chrono::duration_cast<std::chrono::nanoseconds>(end_time_tmp - start_time_tmp).count();
         // Bin comparison print
         // std::cout << "Node " << node_idx << " depth=" << depth << " t_begin=" << t_begin << " t_count=" << t_count
         //           << " best_split=" << best_split << " N_L=" << N_L << " N_R=" << N_R << " binIDs=[";
@@ -531,6 +550,7 @@ void BvhVec::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
             Loop until the pointers cross.
             If l point to a "right" triangle and r point to a "left" triangle -> swap.
         */
+        start_time_tmp = std::chrono::high_resolution_clock::now();
         size_t l = t_begin;
         size_t r = t_begin + t_count - 1;
         while (l < r) {
@@ -550,8 +570,12 @@ void BvhVec::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
                 r--;
             }
         }
+        end_time_tmp = std::chrono::high_resolution_clock::now();
+        rearange_triangles_duration +=
+            std::chrono::duration_cast<std::chrono::nanoseconds>(end_time_tmp - start_time_tmp).count();
 
         // Calculate centroid bounds for children.
+        start_time_tmp = std::chrono::high_resolution_clock::now();
         AABB CB_L, CB_R;  // child centroid bounds
         float CB_L_min_x = infinity;
         float CB_L_min_y = infinity;
@@ -590,19 +614,38 @@ void BvhVec::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         }
         CB_L = AABB({CB_L_min_x, CB_L_min_y, CB_L_min_z}, {CB_L_max_x, CB_L_max_y, CB_L_max_z});
         CB_R = AABB({CB_R_min_x, CB_R_min_y, CB_R_min_z}, {CB_R_max_x, CB_R_max_y, CB_R_max_z});
+        end_time_tmp = std::chrono::high_resolution_clock::now();
+        calculate_centroids_duration +=
+            std::chrono::duration_cast<std::chrono::nanoseconds>(end_time_tmp - start_time_tmp).count();
 
         // Push children
         size_t left_child_idx = next_free_node_idx++;
         size_t right_child_idx = next_free_node_idx++;
         nodes_[node_idx].left_child_idx = left_child_idx;
         nodes_[node_idx].right_child_idx = right_child_idx;
-        s.push({left_child_idx, depth + 1, TB_L, CB_L, t_begin, N_L});
-        s.push({right_child_idx, depth + 1, TB_R, CB_R, t_begin + N_L, N_R});
+        s.emplace(left_child_idx, depth + 1, TB_L, CB_L, t_begin, N_L);
+        s.emplace(right_child_idx, depth + 1, TB_R, CB_R, t_begin + N_L, N_R);
     }
+
+    auto build_loop_end = std::chrono::high_resolution_clock::now();
+    auto build_loop_duration =
+        std::chrono::duration_cast<std::chrono::microseconds>(build_loop_end - build_loop_start).count();
 
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
-    std::cout << "\rVectorized BVH building time: " << duration / 1000.0 << " ms" << std::endl;
+    std::cout << "Vectorized BVH building time: " << duration / 1000.0 << " ms" << std::endl;
+    std::cout << "  Init time (precalculate aabbs and centroids): " << init_duration / 1000.0 << " ms" << std::endl;
+    std::cout << "  BVH build loop time: " << build_loop_duration / 1000.0 << " ms" << std::endl;
+
+    std::cout << "    Calculate bin ids time: " << calculate_bin_ids_duration / 1000000.0 << " ms" << std::endl;
+    std::cout << "    Calculate best split and bins time: " << calculate_best_split_and_bins_duration / 1000000.0
+              << " ms" << std::endl;
+    std::cout << "    Rearange triangles time: " << rearange_triangles_duration / 1000000.0 << " ms" << std::endl;
+    std::cout << "    Calculate centroids time: " << calculate_centroids_duration / 1000000.0 << " ms" << std::endl;
+    int64_t loop_overhead =
+        (build_loop_duration * 1000.0) - (calculate_bin_ids_duration + calculate_best_split_and_bins_duration +
+                                          rearange_triangles_duration + calculate_centroids_duration);
+    std::cout << "    Loop & structure node creation overhead: " << loop_overhead / 1000000.0 << " ms" << std::endl;
 }
 
 std::vector<std::shared_ptr<const Triangle>> BvhVec::Search(const Ray& r, bool first_hit) const {
@@ -616,7 +659,7 @@ std::vector<std::shared_ptr<const Triangle>> BvhVec::Search(const Ray& r, bool f
 
     std::stack<size_t> s;
     if (collision_ray_aabb(r, nodes_[0].bounding_box)) {
-        s.push(0);
+        s.emplace(0);
     }
     while (!s.empty()) {
         auto node_idx = s.top();
@@ -638,10 +681,10 @@ std::vector<std::shared_ptr<const Triangle>> BvhVec::Search(const Ray& r, bool f
         size_t left_child_idx = nodes_[node_idx].left_child_idx;
         size_t right_child_idx = nodes_[node_idx].right_child_idx;
         if (collision_ray_aabb(r, nodes_[left_child_idx].bounding_box)) {
-            s.push(left_child_idx);
+            s.emplace(left_child_idx);
         }
         if (collision_ray_aabb(r, nodes_[right_child_idx].bounding_box)) {
-            s.push(right_child_idx);
+            s.emplace(right_child_idx);
         }
     }
 
