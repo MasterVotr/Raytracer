@@ -20,7 +20,7 @@ class Renderer {
    public:
     enum RENDER_TYPE { DISTANCE, DIFFUSION, PHONG, BLINN_PHONG };
     enum SHADING_TYPE { FLAT, SMOOTH };
-    enum ACCELERATION_DATA_STRUCTURE { NONE, OCTREE, OCTREE_PARAMETRIC, BVH_NAIVE, BVH_SEQ, BVH_VEC };
+    enum ACCELERATION_DATA_STRUCTURE { NONE, OCTREE, OCTREE_PARAMETRIC, BVH_NAIVE, BVH_SEQ, BVH_VEC, BVH_PAR };
 
     Renderer(const nlohmann::json& config) : config_(config) { config_setup(config); };
 

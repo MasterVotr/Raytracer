@@ -7,6 +7,7 @@
 #include "include/json.hpp"
 #include "renderer.h"
 #include "src/ADS/BVH/BVHNaive/bvh_naive.h"
+#include "src/ADS/BVH/BVHPar/bvh_par.h"
 #include "src/ADS/BVH/BVHSeq/bvh_seq.h"
 #include "src/ADS/BVH/BVHVec/bvh_vec.h"
 #include "src/ADS/DummyAds/dummy_ads.h"
@@ -93,6 +94,8 @@ std::unique_ptr<Ads> Renderer::setup_ads() const {
             return std::make_unique<BvhSeq>(config_.at("acceleration_data_structure"));
         case BVH_VEC:
             return std::make_unique<BvhVec>(config_.at("acceleration_data_structure"));
+        case BVH_PAR:
+            return std::make_unique<BvhPar>(config_.at("acceleration_data_structure"));
         default:
             throw std::runtime_error("Unknown ADS!");
     }
@@ -393,6 +396,8 @@ void Renderer::config_setup(const nlohmann::json& config) {
         acceleration_data_structure_ = BVH_SEQ;
     } else if (config.at("acceleration_data_structure").at("name") == "bvh_vec") {
         acceleration_data_structure_ = BVH_VEC;
+    } else if (config.at("acceleration_data_structure").at("name") == "bvh_par") {
+        acceleration_data_structure_ = BVH_PAR;
     } else {
         throw std::runtime_error("Invalid data structure");
     }
