@@ -419,6 +419,7 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         }
     };
     TrinagleVerticesSoA tri_verts(n);
+#pragma omp parallel for schedule(static)
     for (size_t i = 0; i < n; i++) {
         tri_verts.v0x[i] = triangles_[i]->vertices[0].pos.x;
         tri_verts.v0y[i] = triangles_[i]->vertices[0].pos.y;
@@ -450,10 +451,12 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
     AABBSoA tbs(n);
     PointSoA cs(n);
 #if defined(__x86_64__) || defined(_M_X64)
-    size_t t = 0;
     const __m256 const_third = _mm256_set1_ps(1.0f / 3.0f);
-    // Process 8 triangles at a time
-    for (; t + 7 < n; t += 8) {
+
+    size_t simd_limit = n - (n % 8);
+// Process 8 triangles at a time
+#pragma omp parallel for schedule(static)
+    for (size_t t = 0; t < simd_limit; t += 8) {
         // Load 8 sets of 3 vertices
         __m256 v0x = _mm256_loadu_ps(tri_verts.v0x.data() + t);
         __m256 v0y = _mm256_loadu_ps(tri_verts.v0y.data() + t);
@@ -491,11 +494,28 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         _mm256_storeu_ps(&cs.y[t], c_y);
         _mm256_storeu_ps(&cs.z[t], c_z);
     }
+    // Process remaining elements
+    for (size_t t = simd_limit; t < n; t++) {
+        // AABB calculation
+        tbs.min_x[t] = std::min({tri_verts.v0x[t], tri_verts.v1x[t], tri_verts.v2x[t]});
+        tbs.min_y[t] = std::min({tri_verts.v0y[t], tri_verts.v1y[t], tri_verts.v2y[t]});
+        tbs.min_z[t] = std::min({tri_verts.v0z[t], tri_verts.v1z[t], tri_verts.v2z[t]});
+        tbs.max_x[t] = std::max({tri_verts.v0x[t], tri_verts.v1x[t], tri_verts.v2x[t]});
+        tbs.max_y[t] = std::max({tri_verts.v0y[t], tri_verts.v1y[t], tri_verts.v2y[t]});
+        tbs.max_z[t] = std::max({tri_verts.v0z[t], tri_verts.v1z[t], tri_verts.v2z[t]});
+
+        // Centroid calculation
+        cs.x[t] = (tri_verts.v0x[t] + tri_verts.v1x[t] + tri_verts.v2x[t]) / 3.0f;
+        cs.y[t] = (tri_verts.v0y[t] + tri_verts.v1y[t] + tri_verts.v2y[t]) / 3.0f;
+        cs.z[t] = (tri_verts.v0z[t] + tri_verts.v1z[t] + tri_verts.v2z[t]) / 3.0f;
+    }
 #elif defined(__aarch64__)
-    size_t t = 0;
     const float32x4_t const_third = vdupq_n_f32(1.0f / 3.0f);
-    // Process 4 triangles at a time
-    for (; t + 3 < n; t += 4) {
+
+    size_t simd_limit = n - (n % 4);
+// Process 4 triangles at a time
+#pragma omp parallel for schedule(static)
+    for (size_t t = 0; t < simd_limit; t += 4) {
         // Load 4 sets of 3 vertices
         float32x4_t v0x = vld1q_f32(tri_verts.v0x.data() + t);
         float32x4_t v0y = vld1q_f32(tri_verts.v0y.data() + t);
@@ -533,11 +553,8 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         vst1q_f32(&cs.y[t], c_y);
         vst1q_f32(&cs.z[t], c_z);
     }
-#else
-    std::clog("Unsupported vectorization architecture");
-    size_t t = 0;
-#endif
-    for (; t < n; t++) {
+    // Process remaining elements
+    for (size_t t = simd_limit; t < n; t++) {
         // AABB calculation
         tbs.min_x[t] = std::min({tri_verts.v0x[t], tri_verts.v1x[t], tri_verts.v2x[t]});
         tbs.min_y[t] = std::min({tri_verts.v0y[t], tri_verts.v1y[t], tri_verts.v2y[t]});
@@ -551,7 +568,27 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         cs.y[t] = (tri_verts.v0y[t] + tri_verts.v1y[t] + tri_verts.v2y[t]) / 3.0f;
         cs.z[t] = (tri_verts.v0z[t] + tri_verts.v1z[t] + tri_verts.v2z[t]) / 3.0f;
     }
+#else
+    std::clog("Unsupported vectorization architecture");
+#pragma omp parallel for schedule(static)
+    for (size_t = 0; t < n; t++) {
+        // AABB calculation
+        tbs.min_x[t] = std::min({tri_verts.v0x[t], tri_verts.v1x[t], tri_verts.v2x[t]});
+        tbs.min_y[t] = std::min({tri_verts.v0y[t], tri_verts.v1y[t], tri_verts.v2y[t]});
+        tbs.min_z[t] = std::min({tri_verts.v0z[t], tri_verts.v1z[t], tri_verts.v2z[t]});
+        tbs.max_x[t] = std::max({tri_verts.v0x[t], tri_verts.v1x[t], tri_verts.v2x[t]});
+        tbs.max_y[t] = std::max({tri_verts.v0y[t], tri_verts.v1y[t], tri_verts.v2y[t]});
+        tbs.max_z[t] = std::max({tri_verts.v0z[t], tri_verts.v1z[t], tri_verts.v2z[t]});
 
+        // Centroid calculation
+        cs.x[t] = (tri_verts.v0x[t] + tri_verts.v1x[t] + tri_verts.v2x[t]) / 3.0f;
+        cs.y[t] = (tri_verts.v0y[t] + tri_verts.v1y[t] + tri_verts.v2y[t]) / 3.0f;
+        cs.z[t] = (tri_verts.v0z[t] + tri_verts.v1z[t] + tri_verts.v2z[t]) / 3.0f;
+    }
+#endif
+
+#pragma omp parallel for schedule(static) reduction(min : vb_min_x, vb_min_y, vb_min_z) \
+    reduction(max : vb_max_x, vb_max_y, vb_max_z)
     for (size_t i = 0; i < n; i++) {
         // Expanding AABB
         vb_min_x = std::min(vb_min_x, tbs.min_x[i]);
@@ -561,6 +598,8 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         vb_max_y = std::max(vb_max_y, tbs.max_y[i]);
         vb_max_z = std::max(vb_max_z, tbs.max_z[i]);
     }
+#pragma omp parallel for schedule(static) reduction(min : cb_min_x, cb_min_y, cb_min_z) \
+    reduction(max : cb_max_x, cb_max_y, cb_max_z)
     for (size_t i = 0; i < n; i++) {
         // Expanding AABB
         cb_min_x = std::min(cb_min_x, cs.x[i]);
@@ -697,7 +736,7 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
             CB_L_max_y = std::max(CB_L_max_y, cs.y[tri_idx]);
             CB_L_max_z = std::max(CB_L_max_z, cs.z[tri_idx]);
         }
-#pragma omp simd reduction(min : CB_L_min_x, CB_L_min_y, CB_L_min_z) reduction(max : CB_L_max_x, CB_L_max_y, CB_L_max_z)
+#pragma omp simd reduction(min : CB_R_min_x, CB_R_min_y, CB_R_min_z) reduction(max : CB_R_max_x, CB_R_max_y, CB_R_max_z)
         for (size_t i = t_begin + N_L; i < t_begin + t_count; ++i) {
             size_t tri_idx = triangle_indices_[i];
             // assert(tri_idx < cs.x.size());
