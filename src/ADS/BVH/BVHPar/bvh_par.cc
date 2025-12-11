@@ -292,9 +292,47 @@ std::vector<int> calculate_bin_ids_par(const AABB& cb, const PointSoA& cs, const
 */
 size_t calculate_best_split_and_bins(BinningBuffers& binning_buffers, size_t& N_L, size_t& N_R, AABB& TB_L, AABB& TB_R,
                                      const AABBSoA& tbs, const std::vector<size_t>& triangle_indices,
-                                     std::vector<int>& binIDs, size_t K, size_t t_begin, size_t t_count) {
+                                     std::vector<int>& binIDs, size_t K, size_t t_begin, size_t t_count,
+                                     size_t horizontal_threshold) {
     // Setup binning buffers
     binning_buffers.reset();
+
+    if (t_count > horizontal_threshold) {
+#pragma omp parallel
+        {
+            std::vector<size_t> local_ns(K, 0);
+            std::vector<AABB> local_bbs(K, AABB(infinity, -infinity));
+
+#pragma omp for schedule(static) nowait
+            for (size_t i = 0; i < t_count; i++) {
+                int bin_idx = binIDs[i];
+                size_t tri_idx = triangle_indices[i + t_begin];
+                // assert(tri_idx < tbs.min_x.size());
+                local_ns[bin_idx]++;
+                local_bbs[bin_idx].expand(Point3(tbs.min_x[tri_idx], tbs.min_y[tri_idx], tbs.min_z[tri_idx]));
+                local_bbs[bin_idx].expand(Point3(tbs.max_x[tri_idx], tbs.max_y[tri_idx], tbs.max_z[tri_idx]));
+            }
+
+#pragma omp critical
+            {
+                for (size_t k = 0; k < K; k++) {
+                    binning_buffers.ns[k] += local_ns[k];
+                    binning_buffers.bbs[k].expand(local_bbs[k]);
+                }
+            }
+        }
+    } else {
+        std::vector<size_t>& ns = binning_buffers.ns;
+        std::vector<AABB>& bbs = binning_buffers.bbs;
+        for (size_t i = 0; i < t_count; i++) {
+            int bin_idx = binIDs[i];
+            size_t tri_idx = triangle_indices[i + t_begin];
+            ns[bin_idx]++;
+            bbs[bin_idx].expand(Point3(tbs.min_x[tri_idx], tbs.min_y[tri_idx], tbs.min_z[tri_idx]));
+            bbs[bin_idx].expand(Point3(tbs.max_x[tri_idx], tbs.max_y[tri_idx], tbs.max_z[tri_idx]));
+        }
+    }
+
     std::vector<size_t>& ns = binning_buffers.ns;
     std::vector<AABB>& bbs = binning_buffers.bbs;
     std::vector<size_t>& N_Ls = binning_buffers.N_Ls;
@@ -305,15 +343,6 @@ size_t calculate_best_split_and_bins(BinningBuffers& binning_buffers, size_t& N_
     std::vector<float>& A_Rs = binning_buffers.A_Rs;
 
     size_t split_count = K - 1;
-
-    for (size_t i = 0; i < t_count; i++) {
-        int bin_idx = binIDs[i];
-        size_t tri_idx = triangle_indices[i + t_begin];
-        // assert(tri_idx < tbs.min_x.size());
-        ns[bin_idx]++;
-        bbs[bin_idx].expand(Point3(tbs.min_x[tri_idx], tbs.min_y[tri_idx], tbs.min_z[tri_idx]));
-        bbs[bin_idx].expand(Point3(tbs.max_x[tri_idx], tbs.max_y[tri_idx], tbs.max_z[tri_idx]));
-    }
 
     // Calculate left sides triangle counts, AABBs and surface areas
     N_Ls[0] = ns[0];
@@ -651,6 +680,7 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         } else {
             binIDs = calculate_bin_ids(cb, cs, triangle_indices_, bin_count_, t_begin, t_count);
         }
+        // std::vector<int> binIDs = calculate_bin_ids(cb, cs, triangle_indices_, bin_count_, t_begin, t_count);
         auto end_time_tmp = std::chrono::high_resolution_clock::now();
         calculate_bin_ids_duration +=
             std::chrono::duration_cast<std::chrono::nanoseconds>(end_time_tmp - start_time_tmp).count();
@@ -660,7 +690,7 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
 
         start_time_tmp = std::chrono::high_resolution_clock::now();
         size_t best_split = calculate_best_split_and_bins(binning_buffers, N_L, N_R, TB_L, TB_R, tbs, triangle_indices_,
-                                                          binIDs, bin_count_, t_begin, t_count);
+                                                          binIDs, bin_count_, t_begin, t_count, horizontal_threshold_);
         end_time_tmp = std::chrono::high_resolution_clock::now();
         calculate_best_split_and_bins_duration +=
             std::chrono::duration_cast<std::chrono::nanoseconds>(end_time_tmp - start_time_tmp).count();
