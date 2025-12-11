@@ -300,8 +300,15 @@ size_t calculate_best_split_and_bins(BinningBuffers& binning_buffers, size_t& N_
     if (t_count > horizontal_threshold) {
 #pragma omp parallel
         {
-            std::vector<size_t> local_ns(K, 0);
-            std::vector<AABB> local_bbs(K, AABB(infinity, -infinity));
+            static thread_local std::vector<size_t> local_ns;
+            static thread_local std::vector<AABB> local_bbs;
+
+            if (local_ns.size() < K) {
+                local_ns.resize(K);
+                local_bbs.resize(K);
+            }
+            std::fill(local_ns.begin(), local_ns.end(), 0);
+            std::fill(local_bbs.begin(), local_bbs.end(), AABB(infinity, -infinity));
 
 #pragma omp for schedule(static) nowait
             for (size_t i = 0; i < t_count; i++) {
