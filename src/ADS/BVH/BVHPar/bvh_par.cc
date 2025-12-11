@@ -404,7 +404,7 @@ BvhPar::BvhPar(const nlohmann::json& config) : Ads(config) {
 void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles) {
     Ads::Build(triangles);
     reset_stats();
-    std::clog << "Building vectorized BVH..." << std::flush;
+    std::clog << "Building parallel BVH..." << std::flush;
     auto start_time = std::chrono::high_resolution_clock::now();
     int64_t calculate_bin_ids_duration = 0;
     int64_t calculate_best_split_and_bins_duration = 0;
@@ -805,7 +805,7 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
 
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
-    std::cout << "Vectorized BVH building time: " << duration / 1000.0 << " ms" << std::endl;
+    std::cout << "Parallel BVH building time: " << duration / 1000.0 << " ms" << std::endl;
     std::cout << "  Init time (precalculate aabbs and centroids): " << init_duration / 1000.0 << " ms" << std::endl;
     std::cout << "  BVH build loop time: " << build_loop_duration / 1000.0 << " ms" << std::endl;
 
@@ -1003,14 +1003,14 @@ void BvhPar::reset_stats() const {
 }
 
 void BvhPar::config_setup(const nlohmann::json& config) {
-    std::clog << "Configuring vectorized BVH..." << std::flush;
+    std::clog << "Configuring parallel BVH..." << std::flush;
 
     max_triangles_per_BB_ = config.at("max_triangles_per_BB");
     max_depth_ = config.at("max_depth");
     bin_count_ = config.at("bin_count");
     horizontal_threshold_ = config.at("horizontal_threshold");
 
-    std::clog << "\rVectorized BVH configured     " << std::endl;
+    std::clog << "\rParallel BVH configured     " << std::endl;
 }
 
 }  // namespace raytracer
