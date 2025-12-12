@@ -168,8 +168,8 @@ std::vector<int> calculate_bin_ids(const AABB& cb, const PointSoA& cs, const std
     for (; i + 3 < t_count; i += 4) {
         // binID_i = k_1 * (c_i_k - k_0)
         // assert(i + t_begin + 3 < triangle_indices.size());
-        // Use vld1q_f32 to load 4 consecutive centroid values directly
-        float32x4_t centroids = vld1q_f32(cs_k + triangle_indices[i + t_begin]);
+        float32x4_t centroids = {cs_k[triangle_indices[i + t_begin + 0]], cs_k[triangle_indices[i + t_begin + 1]],
+                                 cs_k[triangle_indices[i + t_begin + 2]], cs_k[triangle_indices[i + t_begin + 3]]};
         float32x4_t diff = vsubq_f32(centroids, k0_vec);
         float32x4_t scaled = vmulq_f32(diff, k1_vec);
 
