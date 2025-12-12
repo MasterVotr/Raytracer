@@ -8,6 +8,8 @@
 
 #include <algorithm>
 // #include <cassert>
+#include <omp.h>
+
 #include <chrono>
 #include <iostream>
 #include <limits>
@@ -20,87 +22,6 @@ namespace raytracer {
 
 namespace {
 
-// SoA definitions
-struct PointSoA {
-    std::vector<float> x;
-    std::vector<float> y;
-    std::vector<float> z;
-
-    explicit PointSoA(size_t n) {
-        x.resize(n);
-        y.resize(n);
-        z.resize(n);
-    }
-
-    void fill(float value) {
-        std::fill(x.begin(), x.end(), value);
-        std::fill(y.begin(), y.end(), value);
-        std::fill(z.begin(), z.end(), value);
-    }
-};
-
-struct AABBSoA {
-    std::vector<float> min_x;
-    std::vector<float> min_y;
-    std::vector<float> min_z;
-    std::vector<float> max_x;
-    std::vector<float> max_y;
-    std::vector<float> max_z;
-
-    explicit AABBSoA(size_t n) {
-        min_x.resize(n);
-        min_y.resize(n);
-        min_z.resize(n);
-        max_x.resize(n);
-        max_y.resize(n);
-        max_z.resize(n);
-    }
-
-    void fill(float min_val, float max_val) {
-        std::fill(min_x.begin(), min_x.end(), min_val);
-        std::fill(min_y.begin(), min_y.end(), min_val);
-        std::fill(min_z.begin(), min_z.end(), min_val);
-        std::fill(max_x.begin(), max_x.end(), max_val);
-        std::fill(max_y.begin(), max_y.end(), max_val);
-        std::fill(max_z.begin(), max_z.end(), max_val);
-    }
-};
-
-struct BinningBuffers {
-    std::vector<size_t> ns;
-    std::vector<AABB> bbs;
-    std::vector<size_t> N_Ls;
-    std::vector<size_t> N_Rs;
-    std::vector<AABB> TB_Ls;
-    std::vector<AABB> TB_Rs;
-    std::vector<float> A_Ls;
-    std::vector<float> A_Rs;
-
-    explicit BinningBuffers(size_t K) {
-        ns.resize(K);
-        bbs.resize(K);
-        size_t split_count = K > 0 ? K - 1 : 0;
-        N_Ls.resize(split_count);
-        N_Rs.resize(split_count);
-        TB_Ls.resize(split_count);
-        TB_Rs.resize(split_count);
-        A_Ls.resize(split_count);
-        A_Rs.resize(split_count);
-        reset();
-    }
-
-    void reset() {
-        std::fill(ns.begin(), ns.end(), 0);
-        std::fill(bbs.begin(), bbs.end(), AABB(infinity, -infinity));
-        std::fill(N_Ls.begin(), N_Ls.end(), 0);
-        std::fill(N_Rs.begin(), N_Rs.end(), 0);
-        std::fill(TB_Ls.begin(), TB_Ls.end(), AABB(infinity, -infinity));
-        std::fill(TB_Rs.begin(), TB_Rs.end(), AABB(infinity, -infinity));
-        std::fill(A_Ls.begin(), A_Ls.end(), 0.0f);
-        std::fill(A_Rs.begin(), A_Rs.end(), 0.0f);
-    }
-};
-
 /*  Triangle to bin separation
     k - binning (splitting) axis
     K - number of bins
@@ -110,8 +31,8 @@ struct BinningBuffers {
     k_1 = (K * (1 - epsilon)) / (cb_max_k - cb_min_k)
     binID_i = k_1 * (c_i_k - k_0)
 */
-std::vector<int> calculate_bin_ids(const AABB& cb, const PointSoA& cs, const std::vector<size_t>& triangle_indices,
-                                   int K, size_t t_begin, size_t t_count) {
+std::vector<int> calculate_bin_ids(const AABB& cb, const raytracer::PointSoA& cs,
+                                   const std::vector<int>& triangle_indices, int K, size_t t_begin, size_t t_count) {
     int k = 0;
     const float* __restrict__ cs_k;
     if (cb.size.x >= cb.size.y && cb.size.x >= cb.size.z) {
@@ -142,7 +63,7 @@ std::vector<int> calculate_bin_ids(const AABB& cb, const PointSoA& cs, const std
     // Process 8 elements at a time
     for (; i + 7 < t_count; i += 8) {
         // binID_i = k_1 * (c_i_k - k_0)
-        const size_t* tri_idx = &triangle_indices[i + t_begin];
+        const int* tri_idx = &triangle_indices[i + t_begin];
         // assert(tri_idx[i + 7] < cs.x.size());
         __m256 centroids = _mm256_i32gather_ps(cs_k, _mm256_loadu_si256((const __m256i*)tri_idx), 4);
         __m256 diff = _mm256_sub_ps(centroids, k0_vec);
@@ -187,8 +108,9 @@ std::vector<int> calculate_bin_ids(const AABB& cb, const PointSoA& cs, const std
     return binIDs;
 }
 
-std::vector<int> calculate_bin_ids_par(const AABB& cb, const PointSoA& cs, const std::vector<size_t>& triangle_indices,
-                                       int K, size_t t_begin, size_t t_count) {
+std::vector<int> calculate_bin_ids_par(const AABB& cb, const raytracer::PointSoA& cs,
+                                       const std::vector<int>& triangle_indices, int K, size_t t_begin,
+                                       size_t t_count) {
     int k = 0;
     const float* __restrict__ cs_k;
     if (cb.size.x >= cb.size.y && cb.size.x >= cb.size.z) {
@@ -221,13 +143,19 @@ std::vector<int> calculate_bin_ids_par(const AABB& cb, const PointSoA& cs, const
 #pragma omp parallel for schedule(static)
     for (size_t i = 0; i < simd_limit; i += 8) {
         // binID_i = k_1 * (c_i_k - k_0)
-        const size_t* tri_idx = &triangle_indices[i + t_begin];
-        __m256 centroids = _mm256_i32gather_ps(cs_k, _mm256_loadu_si256((const __m256i*)tri_idx), 4);
+        const int* tri_idx = &triangle_indices[i + t_begin];
+
+        // Load indices
+        __m256i idx = _mm256_loadu_si256((const __m256i*)tri_idx);
+
+        // Gather float using 32bit indices
+        __m256 centroids = _mm256_i32gather_ps(cs_k, idx, 4);
+
         __m256 diff = _mm256_sub_ps(centroids, k0_vec);
         __m256 scaled = _mm256_mul_ps(diff, k1_vec);
 
         // Convert to int (truncation)
-        __m256i bin_indices = _mm256_cvtps_epi32(scaled);
+        __m256i bin_indices = _mm256_cvttps_epi32(scaled);
 
         // Store results
         _mm256_storeu_si256((__m256i*)&binIDs_ptr[i], bin_indices);
@@ -236,7 +164,7 @@ std::vector<int> calculate_bin_ids_par(const AABB& cb, const PointSoA& cs, const
         size_t tri_idx = triangle_indices[i + t_begin];
         // assert(tri_idx < cs.x.size());
         int bin_idx = static_cast<int>(k_1 * (cs_k[tri_idx] - k_0));
-        binIDs_ptr[i] = std::min(bin_idx, K - 1);
+        binIDs_ptr[i] = bin_idx;
     }
 #elif defined(__aarch64__)
     size_t i = 0;
@@ -263,7 +191,7 @@ std::vector<int> calculate_bin_ids_par(const AABB& cb, const PointSoA& cs, const
         size_t tri_idx = triangle_indices[i + t_begin];
         // assert(tri_idx < cs.x.size());
         int bin_idx = static_cast<int>(k_1 * (cs_k[tri_idx] - k_0));
-        binIDs_ptr[i] = std::min(bin_idx, K - 1);
+        binIDs_ptr[i] = bin_idx;
     }
 #else
 #pragma omp parallel for schedule(static)
@@ -271,7 +199,7 @@ std::vector<int> calculate_bin_ids_par(const AABB& cb, const PointSoA& cs, const
         size_t tri_idx = triangle_indices[i + t_begin];
         // assert(tri_idx < cs.x.size());
         int bin_idx = static_cast<int>(k_1 * (cs_k[tri_idx] - k_0));
-        binIDs_ptr[i] = std::min(bin_idx, K - 1);
+        binIDs_ptr[i] = bin_idx;
     }
 #endif
 
@@ -291,7 +219,7 @@ std::vector<int> calculate_bin_ids_par(const AABB& cb, const PointSoA& cs, const
     cost_j - const of split j - A_L_j * N_L_j + A_R_j * N_R_j
 */
 size_t calculate_best_split_and_bins(BinningBuffers& binning_buffers, size_t& N_L, size_t& N_R, AABB& TB_L, AABB& TB_R,
-                                     const AABBSoA& tbs, const std::vector<size_t>& triangle_indices,
+                                     const raytracer::AABBSoA& tbs, const std::vector<int>& triangle_indices,
                                      std::vector<int>& binIDs, size_t K, size_t t_begin, size_t t_count,
                                      size_t horizontal_threshold) {
     // Setup binning buffers
@@ -484,8 +412,8 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
     float cb_max_y = -infinity;
     float cb_max_z = -infinity;
 
-    AABBSoA tbs(n);
-    PointSoA cs(n);
+    raytracer::AABBSoA tbs(n);
+    raytracer::PointSoA cs(n);
 #if defined(__x86_64__) || defined(_M_X64)
     const __m256 const_third = _mm256_set1_ps(1.0f / 3.0f);
 
@@ -660,14 +588,21 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         size_t t_count;
     };
 
-    size_t next_free_node_idx = 0;
+    std::atomic<size_t> next_free_node_idx = 0;
     std::stack<StackElem> s;
+    std::vector<StackElem> small_subtrees;
+    small_subtrees.reserve(n / 2);
     s.emplace(next_free_node_idx++, 0, vb, cb, 0, n);
 
     auto build_loop_start = std::chrono::high_resolution_clock::now();
     while (!s.empty()) {
         auto [node_idx, depth, vb, cb, t_begin, t_count] = s.top();
         s.pop();
+
+        if (t_count < horizontal_threshold_) {
+            small_subtrees.emplace_back(node_idx, depth, vb, cb, t_begin, t_count);
+            continue;
+        }
 
         nodes_[node_idx].depth = depth;
         nodes_[node_idx].bounding_box = vb;
@@ -799,6 +734,14 @@ void BvhPar::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         s.emplace(right_child_idx, depth + 1, TB_R, CB_R, t_begin + N_L, N_R);
     }
 
+#pragma omp parallel for schedule(dynamic)
+    for (size_t i = 0; i < small_subtrees.size(); i++) {
+        BinningBuffers binning_buffers(bin_count_);
+        build_recursive(small_subtrees[i].node_idx, small_subtrees[i].depth, small_subtrees[i].vb, small_subtrees[i].cb,
+                        small_subtrees[i].t_begin, small_subtrees[i].t_count, cs, tbs, next_free_node_idx,
+                        binning_buffers);
+    }
+
     auto build_loop_end = std::chrono::high_resolution_clock::now();
     auto build_loop_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(build_loop_end - build_loop_start).count();
@@ -916,6 +859,100 @@ void BvhPar::PrintStats(std::ostream& os) const {
     os << "   - Max: " << stats.search_max_return_count << "\n";
     os << "   - Avg: " << (float)stats.search_return_count / stats.search_count << "\n";
     os << "   - Total tris returned: " << stats.search_return_count << "\n\n";
+}
+
+void BvhPar::build_recursive(size_t node_idx, ssize_t depth, const AABB& vb, const AABB& cb, size_t t_begin,
+                             size_t t_count, const raytracer::PointSoA& cs, const raytracer::AABBSoA& tbs,
+                             std::atomic<size_t>& next_free_node_idx, BinningBuffers& binning_buffers) {
+    nodes_[node_idx].depth = depth;
+    nodes_[node_idx].bounding_box = vb;
+    nodes_[node_idx].t_begin = t_begin;
+    nodes_[node_idx].t_count = 0;
+    // Node becomes a leaf if termination conditions are met -> the recursion stops
+    bool cb_too_small = cb.size.x < epsilon && cb.size.y < epsilon && cb.size.z < epsilon;
+    if (t_count < max_triangles_per_BB_ || nodes_[node_idx].depth >= max_depth_ || cb_too_small) {
+        nodes_[node_idx].t_count = t_count;
+        return;
+    }
+
+    std::vector<int> binIDs = calculate_bin_ids(cb, cs, triangle_indices_, bin_count_, t_begin, t_count);
+
+    size_t N_L, N_R;  // child triangle counts
+    AABB TB_L, TB_R;  // child triangle bounds
+
+    size_t best_split = calculate_best_split_and_bins(binning_buffers, N_L, N_R, TB_L, TB_R, tbs, triangle_indices_,
+                                                      binIDs, bin_count_, t_begin, t_count, horizontal_threshold_);
+
+    if (N_L == 0 || N_R == 0) {
+        nodes_[node_idx].t_count = t_count;
+        return;
+    }
+
+    size_t l = t_begin;
+    size_t r = t_begin + t_count - 1;
+    while (l < r) {
+        while (l < r && binIDs[l - t_begin] <= best_split) {
+            l++;
+        }
+        while (l < r && binIDs[r - t_begin] > best_split) {
+            r--;
+        }
+        if (l < r) {
+            std::swap(triangle_indices_[l], triangle_indices_[r]);
+            l++;
+            r--;
+        }
+    }
+
+    AABB CB_L, CB_R;  // child centroid bounds
+    float CB_L_min_x = infinity;
+    float CB_L_min_y = infinity;
+    float CB_L_min_z = infinity;
+    float CB_L_max_x = -infinity;
+    float CB_L_max_y = -infinity;
+    float CB_L_max_z = -infinity;
+
+    float CB_R_min_x = infinity;
+    float CB_R_min_y = infinity;
+    float CB_R_min_z = infinity;
+    float CB_R_max_x = -infinity;
+    float CB_R_max_y = -infinity;
+    float CB_R_max_z = -infinity;
+#pragma omp simd reduction(min : CB_L_min_x, CB_L_min_y, CB_L_min_z) reduction(max : CB_L_max_x, CB_L_max_y, CB_L_max_z)
+    for (size_t i = t_begin; i < t_begin + N_L; ++i) {
+        size_t tri_idx = triangle_indices_[i];
+        // assert(tri_idx < cs.x.size());
+        CB_L_min_x = std::min(CB_L_min_x, cs.x[tri_idx]);
+        CB_L_min_y = std::min(CB_L_min_y, cs.y[tri_idx]);
+        CB_L_min_z = std::min(CB_L_min_z, cs.z[tri_idx]);
+        CB_L_max_x = std::max(CB_L_max_x, cs.x[tri_idx]);
+        CB_L_max_y = std::max(CB_L_max_y, cs.y[tri_idx]);
+        CB_L_max_z = std::max(CB_L_max_z, cs.z[tri_idx]);
+    }
+#pragma omp simd reduction(min : CB_R_min_x, CB_R_min_y, CB_R_min_z) reduction(max : CB_R_max_x, CB_R_max_y, CB_R_max_z)
+    for (size_t i = t_begin + N_L; i < t_begin + t_count; ++i) {
+        size_t tri_idx = triangle_indices_[i];
+        // assert(tri_idx < cs.x.size());
+        CB_R_min_x = std::min(CB_R_min_x, cs.x[tri_idx]);
+        CB_R_min_y = std::min(CB_R_min_y, cs.y[tri_idx]);
+        CB_R_min_z = std::min(CB_R_min_z, cs.z[tri_idx]);
+        CB_R_max_x = std::max(CB_R_max_x, cs.x[tri_idx]);
+        CB_R_max_y = std::max(CB_R_max_y, cs.y[tri_idx]);
+        CB_R_max_z = std::max(CB_R_max_z, cs.z[tri_idx]);
+    }
+    CB_L = AABB({CB_L_min_x, CB_L_min_y, CB_L_min_z}, {CB_L_max_x, CB_L_max_y, CB_L_max_z});
+    CB_R = AABB({CB_R_min_x, CB_R_min_y, CB_R_min_z}, {CB_R_max_x, CB_R_max_y, CB_R_max_z});
+
+    // Push children
+    size_t left_child_idx = next_free_node_idx++;
+    size_t right_child_idx = next_free_node_idx++;
+    nodes_[node_idx].left_child_idx = left_child_idx;
+    nodes_[node_idx].right_child_idx = right_child_idx;
+
+    // Sequential recursing
+    build_recursive(left_child_idx, depth + 1, TB_L, CB_L, t_begin, N_L, cs, tbs, next_free_node_idx, binning_buffers);
+    build_recursive(right_child_idx, depth + 1, TB_R, CB_R, t_begin + N_L, N_R, cs, tbs, next_free_node_idx,
+                    binning_buffers);
 }
 
 BvhPar::BvhParStats BvhPar::calculate_stats() const {

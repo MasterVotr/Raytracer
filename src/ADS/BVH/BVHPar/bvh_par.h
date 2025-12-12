@@ -3,6 +3,7 @@
 #include <atomic>
 #include <memory>
 
+#include "src/ADS/BVH/bvh_utils.h"
 #include "src/ADS/ads.h"
 
 namespace raytracer {
@@ -55,14 +56,15 @@ class BvhPar : public Ads {
         size_t search_leaves_visited;
     };
 
-    // void build_recursive(const PointSoA& cs, const AABBSoA& tbs, size_t node_idx, size_t depth, AABB vb, AABB cb,
-    //                      size_t t_begin, size_t t_count, std::atomic<size_t>& next_free_node_idx);
+    void build_recursive(size_t node_idx, ssize_t depth, const AABB& vb, const AABB& cb, size_t t_begin, size_t t_count,
+                         const PointSoA& cs, const AABBSoA& tbs, std::atomic<size_t>& next_free_node_idx,
+                         BinningBuffers& binning_buffers);
     void config_setup(const nlohmann::json& config);
     BvhParStats calculate_stats() const;
     void reset_stats() const;
 
     std::vector<BvhNode> nodes_;  // root node at idx 0, child nodes are parent node_idx*2+1 and node_idx*2+2
-    std::vector<size_t> triangle_indices_;
+    std::vector<int> triangle_indices_;
 
     // Config variables
     size_t max_triangles_per_BB_;

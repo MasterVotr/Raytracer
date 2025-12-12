@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "src/ADS/BVH/bvh_utils.h"
 #include "src/ADS/ads.h"
 
 namespace raytracer {

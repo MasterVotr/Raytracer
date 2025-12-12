@@ -177,7 +177,7 @@ Scene LoadScene(const nlohmann::json& loader_config, const nlohmann::json& scene
     }
     std::clog << "\rLoading " << filename << " done." << std::endl;
 
-    // obj_loader_internal::PrintInfo(attrib, shapes, materials);
+    // PrintInfo(attrib, shapes, materials);
 
     if (attrib.normals.size() == 0) {
         std::cerr << "No normals found in the model, only flat shading available" << std::endl;

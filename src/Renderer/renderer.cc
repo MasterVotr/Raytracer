@@ -40,7 +40,7 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
     ads->PrintStats(std::cout);
 
     for (size_t r = 0; r < rays.size(); r++) {
-        if (r % 100 == 0) {
+        if (r % scene.GetCamera().height == 0) {
             std::clog << "\rRendering scene... " << (r * 1.0 / rays.size()) * 100.0 << "%     " << std::flush;
         }
 
