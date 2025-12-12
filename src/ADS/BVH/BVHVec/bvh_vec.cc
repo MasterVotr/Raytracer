@@ -110,8 +110,8 @@ struct BinningBuffers {
     k_1 = (K * (1 - epsilon)) / (cb_max_k - cb_min_k)
     binID_i = k_1 * (c_i_k - k_0)
 */
-std::vector<int> calculate_bin_ids(const AABB& cb, const PointSoA& cs, const std::vector<size_t>& triangle_indices,
-                                   int K, size_t t_begin, size_t t_count) {
+std::vector<int> calculate_bin_ids(const AABB& cb, const PointSoA& cs, const std::vector<int>& triangle_indices, int K,
+                                   size_t t_begin, size_t t_count) {
     int k = 0;
     const float* __restrict__ cs_k;
     if (cb.size.x >= cb.size.y && cb.size.x >= cb.size.z) {
@@ -142,14 +142,20 @@ std::vector<int> calculate_bin_ids(const AABB& cb, const PointSoA& cs, const std
     // Process 8 elements at a time
     for (; i + 7 < t_count; i += 8) {
         // binID_i = k_1 * (c_i_k - k_0)
-        const size_t* tri_idx = &triangle_indices[i + t_begin];
+        const int* tri_idx = &triangle_indices[i + t_begin];
         // assert(tri_idx[i + 7] < cs.x.size());
-        __m256 centroids = _mm256_i32gather_ps(cs_k, _mm256_loadu_si256((const __m256i*)tri_idx), 4);
+
+        // Load indices
+        __m256i idx = _mm256_loadu_si256((const __m256i*)tri_idx);
+
+        // Gather float using 32bit indices
+        __m256 centroids = _mm256_i32gather_ps(cs_k, idx, 4);
+
         __m256 diff = _mm256_sub_ps(centroids, k0_vec);
         __m256 scaled = _mm256_mul_ps(diff, k1_vec);
 
         // Convert to int (truncation)
-        __m256i bin_indices = _mm256_cvtps_epi32(scaled);
+        __m256i bin_indices = _mm256_cvttps_epi32(scaled);
 
         // Store results
         _mm256_storeu_si256((__m256i*)&binIDs_ptr[i], bin_indices);
@@ -162,8 +168,8 @@ std::vector<int> calculate_bin_ids(const AABB& cb, const PointSoA& cs, const std
     for (; i + 3 < t_count; i += 4) {
         // binID_i = k_1 * (c_i_k - k_0)
         // assert(i + t_begin + 3 < triangle_indices.size());
-        float32x4_t centroids = {cs_k[triangle_indices[i + t_begin + 0]], cs_k[triangle_indices[i + t_begin + 1]],
-                                 cs_k[triangle_indices[i + t_begin + 2]], cs_k[triangle_indices[i + t_begin + 3]]};
+        // Use vld1q_f32 to load 4 consecutive centroid values directly
+        float32x4_t centroids = vld1q_f32(cs_k + triangle_indices[i + t_begin]);
         float32x4_t diff = vsubq_f32(centroids, k0_vec);
         float32x4_t scaled = vmulq_f32(diff, k1_vec);
 
@@ -178,10 +184,10 @@ std::vector<int> calculate_bin_ids(const AABB& cb, const PointSoA& cs, const std
 #endif
     // Process remaining elements
     for (; i < t_count; i++) {
-        size_t tri_idx = triangle_indices[i + t_begin];
+        int tri_idx = triangle_indices[i + t_begin];
         // assert(tri_idx < cs.x.size());
         int bin_idx = static_cast<int>(k_1 * (cs_k[tri_idx] - k_0));
-        binIDs_ptr[i] = std::min(bin_idx, K - 1);
+        binIDs_ptr[i] = bin_idx;
     }
 
     return binIDs;
@@ -200,7 +206,7 @@ std::vector<int> calculate_bin_ids(const AABB& cb, const PointSoA& cs, const std
     cost_j - const of split j - A_L_j * N_L_j + A_R_j * N_R_j
 */
 size_t calculate_best_split_and_bins(BinningBuffers& binning_buffers, size_t& N_L, size_t& N_R, AABB& TB_L, AABB& TB_R,
-                                     const AABBSoA& tbs, const std::vector<size_t>& triangle_indices,
+                                     const AABBSoA& tbs, const std::vector<int>& triangle_indices,
                                      std::vector<int>& binIDs, size_t K, size_t t_begin, size_t t_count) {
     // Setup binning buffers
     binning_buffers.reset();
@@ -217,7 +223,7 @@ size_t calculate_best_split_and_bins(BinningBuffers& binning_buffers, size_t& N_
 
     for (size_t i = 0; i < t_count; i++) {
         int bin_idx = binIDs[i];
-        size_t tri_idx = triangle_indices[i + t_begin];
+        int tri_idx = triangle_indices[i + t_begin];
         // assert(tri_idx < tbs.min_x.size());
         ns[bin_idx]++;
         bbs[bin_idx].expand(Point3(tbs.min_x[tri_idx], tbs.min_y[tri_idx], tbs.min_z[tri_idx]));
@@ -592,7 +598,7 @@ void BvhVec::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         float CB_R_max_z = -infinity;
 #pragma omp simd reduction(min : CB_L_min_x, CB_L_min_y, CB_L_min_z) reduction(max : CB_L_max_x, CB_L_max_y, CB_L_max_z)
         for (size_t i = t_begin; i < t_begin + N_L; ++i) {
-            size_t tri_idx = triangle_indices_[i];
+            int tri_idx = triangle_indices_[i];
             // assert(tri_idx < cs.x.size());
             CB_L_min_x = std::min(CB_L_min_x, cs.x[tri_idx]);
             CB_L_min_y = std::min(CB_L_min_y, cs.y[tri_idx]);
@@ -603,7 +609,7 @@ void BvhVec::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         }
 #pragma omp simd reduction(min : CB_L_min_x, CB_L_min_y, CB_L_min_z) reduction(max : CB_L_max_x, CB_L_max_y, CB_L_max_z)
         for (size_t i = t_begin + N_L; i < t_begin + t_count; ++i) {
-            size_t tri_idx = triangle_indices_[i];
+            int tri_idx = triangle_indices_[i];
             // assert(tri_idx < cs.x.size());
             CB_R_min_x = std::min(CB_R_min_x, cs.x[tri_idx]);
             CB_R_min_y = std::min(CB_R_min_y, cs.y[tri_idx]);
@@ -671,7 +677,7 @@ std::vector<std::shared_ptr<const Triangle>> BvhVec::Search(const Ray& r, bool f
         if (nodes_[node_idx].t_count) {
             search_leaves_visited++;
             for (size_t i = 0; i < nodes_[node_idx].t_count; i++) {
-                size_t tri_idx = triangle_indices_[nodes_[node_idx].t_begin + i];
+                int tri_idx = triangle_indices_[nodes_[node_idx].t_begin + i];
                 result.emplace_back(triangles_[tri_idx]);
             }
             continue;

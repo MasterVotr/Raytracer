@@ -37,6 +37,7 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
     std::vector<Ray> rays = generate_rays(scene);
     std::unique_ptr<Ads> ads = setup_ads();
     ads->Build(scene.GetTriangles());
+    ads->PrintStats(std::cout);
 
     for (size_t r = 0; r < rays.size(); r++) {
         if (r % 100 == 0) {
@@ -63,8 +64,6 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
         img.emplace_back(pixel_color.z);
     }
     std::clog << "\rRendering done               " << std::endl;
-
-    ads->PrintStats(std::cout);
 
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();

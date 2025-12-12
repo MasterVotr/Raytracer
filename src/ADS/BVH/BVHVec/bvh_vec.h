@@ -59,7 +59,7 @@ class BvhVec : public Ads {
     void reset_stats() const;
 
     std::vector<BvhNode> nodes_;  // root node at idx 0, child nodes are parent node_idx*2+1 and node_idx*2+2
-    std::vector<size_t> triangle_indices_;
+    std::vector<int> triangle_indices_;
 
     // Config variables
     size_t max_triangles_per_BB_;
