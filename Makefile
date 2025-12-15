@@ -2,7 +2,7 @@
 CXX := g++
 CFLAGSDEBUG := -Wall -Wextra -pedantic -fsanitize=address -g
 CFLAGSVECTORIZATION := -ftree-vectorize -fopt-info-vec -fopt-info-vec-missed
-CFLAGSOPTIMIZATION := -fopenmp -O3 -ffast-math -march=native -funroll-loops
+CFLAGSOPTIMIZATION := -fopenmp -march=native -O3 -ffast-math -funroll-loops
 CFLAGS := $(CFLAGSOPTIMIZATION) -std=c++20 -I.
 
 SRC_DIR := src
