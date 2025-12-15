@@ -11,6 +11,7 @@
 #include "src/ADS/BVH/BVHSeq/bvh_seq.h"
 #include "src/ADS/BVH/BVHSeq2/bvh_seq2.h"
 #include "src/ADS/BVH/BVHVec/bvh_vec.h"
+#include "src/ADS/BVH/BVHVec2/bvh_vec2.h"
 #include "src/ADS/DummyAds/dummy_ads.h"
 #include "src/ADS/Octree/OctreeParametric/octree_parametric.h"
 #include "src/ADS/Octree/octree.h"
@@ -38,7 +39,6 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
     std::vector<Ray> rays = generate_rays(scene);
     std::unique_ptr<Ads> ads = setup_ads();
     ads->Build(scene.GetTriangles());
-    ads->PrintStats(std::cout);
 
     for (size_t r = 0; r < rays.size(); r++) {
         if (r % scene.GetCamera().height == 0) {
@@ -66,6 +66,7 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
     }
     std::clog << "\rRendering done               " << std::endl;
 
+    ads->PrintStats(std::cout);
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
     std::cout << "Ray-triangle collisions:\n";
@@ -96,6 +97,8 @@ std::unique_ptr<Ads> Renderer::setup_ads() const {
             return std::make_unique<BvhSeq2>(config_.at("acceleration_data_structure"));
         case BVH_VEC:
             return std::make_unique<BvhVec>(config_.at("acceleration_data_structure"));
+        case BVH_VEC2:
+            return std::make_unique<BvhVec2>(config_.at("acceleration_data_structure"));
         case BVH_PAR:
             return std::make_unique<BvhPar>(config_.at("acceleration_data_structure"));
         default:
@@ -400,6 +403,8 @@ void Renderer::config_setup(const nlohmann::json& config) {
         acceleration_data_structure_ = BVH_SEQ2;
     } else if (config.at("acceleration_data_structure").at("name") == "bvh_vec") {
         acceleration_data_structure_ = BVH_VEC;
+    } else if (config.at("acceleration_data_structure").at("name") == "bvh_vec2") {
+        acceleration_data_structure_ = BVH_VEC2;
     } else if (config.at("acceleration_data_structure").at("name") == "bvh_par") {
         acceleration_data_structure_ = BVH_PAR;
     } else {

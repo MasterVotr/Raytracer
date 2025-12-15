@@ -28,6 +28,7 @@ class Renderer {
         BVH_SEQ,
         BVH_SEQ2,
         BVH_VEC,
+        BVH_VEC2,
         BVH_PAR
     };
 
