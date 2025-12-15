@@ -9,6 +9,7 @@
 #include "src/ADS/BVH/BVHNaive/bvh_naive.h"
 #include "src/ADS/BVH/BVHPar/bvh_par.h"
 #include "src/ADS/BVH/BVHSeq/bvh_seq.h"
+#include "src/ADS/BVH/BVHSeq2/bvh_seq2.h"
 #include "src/ADS/BVH/BVHVec/bvh_vec.h"
 #include "src/ADS/DummyAds/dummy_ads.h"
 #include "src/ADS/Octree/OctreeParametric/octree_parametric.h"
@@ -91,6 +92,8 @@ std::unique_ptr<Ads> Renderer::setup_ads() const {
             return std::make_unique<BvhNaive>(config_.at("acceleration_data_structure"));
         case BVH_SEQ:
             return std::make_unique<BvhSeq>(config_.at("acceleration_data_structure"));
+        case BVH_SEQ2:
+            return std::make_unique<BvhSeq2>(config_.at("acceleration_data_structure"));
         case BVH_VEC:
             return std::make_unique<BvhVec>(config_.at("acceleration_data_structure"));
         case BVH_PAR:
@@ -393,6 +396,8 @@ void Renderer::config_setup(const nlohmann::json& config) {
         acceleration_data_structure_ = BVH_NAIVE;
     } else if (config.at("acceleration_data_structure").at("name") == "bvh_seq") {
         acceleration_data_structure_ = BVH_SEQ;
+    } else if (config.at("acceleration_data_structure").at("name") == "bvh_seq2") {
+        acceleration_data_structure_ = BVH_SEQ2;
     } else if (config.at("acceleration_data_structure").at("name") == "bvh_vec") {
         acceleration_data_structure_ = BVH_VEC;
     } else if (config.at("acceleration_data_structure").at("name") == "bvh_par") {
