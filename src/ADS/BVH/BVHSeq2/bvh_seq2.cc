@@ -19,15 +19,16 @@ BvhSeq2::BvhSeq2(const nlohmann::json& config) : Ads(config) {
 
 void BvhSeq2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles) {
     Ads::Build(triangles);
-    reset_stats();
-    std::clog << "Building sequential2 BVH..." << std::flush;
+    std::clog << "Building sequential2 BVH..." << std::endl;
     Timer build_t;
+    bins_duration_ = 0;
 
     // Clear nodes_ and tri_idxs
     size_t n = triangles_.size();
     nodes_.resize(2 * n - 1);
     tri_idxs_.resize(n);
     std::iota(tri_idxs_.begin(), tri_idxs_.end(), 0);
+    Timer init_t;
 
     // Precalculate tbs and cbs
     std::vector<AABB> tbs;  // Triangle bboxes
@@ -45,6 +46,8 @@ void BvhSeq2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
     std::for_each(tbs.begin(), tbs.end(), [&](const auto& tb) { vb.expand(tb); });
     std::for_each(tcs.begin(), tcs.end(), [&](const auto& tc) { cb.expand(tc); });
 
+    std::cout << "  Init time: " << init_t.elapsed_ms() << " ms" << std::endl;
+
     BvhNode& root = nodes_[0];
     root.t_begin = 0;
     root.aabb_min = vb.min;
@@ -54,6 +57,7 @@ void BvhSeq2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
 
     subdivide(0, 0, cb, tcs, tbs);
 
+    std::cout << "  Bins time: " << bins_duration_/ 1000000.0 << " ms" << std::endl;
     std::cout << "Sequential2 BVH building time: " << build_t.elapsed_ms() << " ms" << std::endl;
 }
 
@@ -166,6 +170,7 @@ float BvhSeq2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
     }
 
     // Calculate bins
+    Timer t_bins;
     std::vector<AABB> bbs(bin_count_, AABB());
     std::vector<size_t> ns(bin_count_, 0);
 
@@ -179,6 +184,7 @@ float BvhSeq2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
         bbs[bin_idx].expand(tbs[t_idx]);
         ns[bin_idx]++;
     }
+    bins_duration_+= t_bins.elapsed_ns();
 
     // Prefix sum calculation left->right
     float best_split_cost = infinity;
@@ -364,9 +370,9 @@ BvhSeq2::BvhSeq2Stats BvhSeq2::calculate_stats() const {
 
 void BvhSeq2::reset_stats() const {
     search_count_ = 0;
-    search_nodes_visited_ = 0;
     search_min_nodes_visited_ = std::numeric_limits<size_t>::max();
     search_max_nodes_visited_ = 0;
+    search_nodes_visited_ = 0;
     search_min_return_count_ = std::numeric_limits<size_t>::max();
     search_max_return_count_ = 0;
     search_return_count_ = 0;

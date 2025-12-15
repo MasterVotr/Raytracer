@@ -87,6 +87,8 @@ class BvhSeq2 : public Ads {
     mutable size_t search_min_leaves_visited_;
     mutable size_t search_max_leaves_visited_;
     mutable size_t search_leaves_visited_;
+
+    mutable size_t bins_duration_;
 };
 
 }  // namespace raytracer
