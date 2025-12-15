@@ -23,11 +23,6 @@ struct alignas(64) vRay {
     float t;
 };
 
-// float intersect_ray_aabb(const vRay& ray, const vAABB& aabb) {
-//     static __m128 mask = _mm_setr_ps(1.0f, 1.0f, 1.0f, 0.0f);
-
-// }
-
 }  // namespace
 
 BvhVec2::BvhVec2(const nlohmann::json& config) : Ads(config) {
