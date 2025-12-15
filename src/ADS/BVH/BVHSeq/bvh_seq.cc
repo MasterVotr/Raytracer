@@ -375,7 +375,7 @@ void BvhSeq::PrintStats(std::ostream& os) const {
     os << "  Leaf tris:\n";
     os << "   - Min: " << stats.min_triangles_in_leaf_nodes << "\n";
     os << "   - Max: " << stats.max_triangles_in_leaf_nodes << "\n";
-    os << "   - Avg: " << stats.avg_traiangles_in_leaf_nodes << "\n\n";
+    os << "   - Avg: " << stats.avg_triangles_in_leaf_nodes << "\n\n";
     os << "BVH Search stats:\n";
     os << " - Tatal calls: " << stats.search_count << "\n";
     os << "  Nodes visited (ray-aabb tests):\n";
@@ -405,6 +405,7 @@ BvhSeq::BvhSeqStats BvhSeq::calculate_stats() const {
     stats.max_depth = 0;
     stats.min_depth = std::numeric_limits<size_t>::max();
     int total_leaf_depth = 0;
+    stats.min_triangles_in_leaf_nodes = std::numeric_limits<size_t>::max();
     stats.max_triangles_in_leaf_nodes = 0;
     int total_triangles_in_leaf_nodes = 0;
     stats.nodes_count = 0;
@@ -444,7 +445,7 @@ BvhSeq::BvhSeqStats BvhSeq::calculate_stats() const {
     }
 
     stats.avg_depth = (float)total_leaf_depth / stats.leaf_nodes_count;
-    stats.avg_traiangles_in_leaf_nodes = (float)total_triangles_in_leaf_nodes / stats.leaf_nodes_count;
+    stats.avg_triangles_in_leaf_nodes = (float)total_triangles_in_leaf_nodes / stats.leaf_nodes_count;
 
     stats.search_count = search_count_;
     stats.search_nodes_visited = search_nodes_visited_;

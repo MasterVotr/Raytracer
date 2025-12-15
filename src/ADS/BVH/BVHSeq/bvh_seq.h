@@ -35,7 +35,7 @@ class BvhSeq : public Ads {
         float avg_depth;
         size_t min_triangles_in_leaf_nodes;
         size_t max_triangles_in_leaf_nodes;
-        float avg_traiangles_in_leaf_nodes;
+        float avg_triangles_in_leaf_nodes;
         size_t nodes_count;
         size_t leaf_nodes_count;
         // Search stats
