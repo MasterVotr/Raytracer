@@ -29,7 +29,8 @@ class Renderer {
         BVH_SEQ2,
         BVH_VEC,
         BVH_VEC2,
-        BVH_PAR
+        BVH_PAR,
+        BVH_PAR2
     };
 
     Renderer(const nlohmann::json& config) : config_(config) { config_setup(config); };
