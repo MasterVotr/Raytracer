@@ -1,5 +1,7 @@
 #include "src/ADS/BVH/BVHPar2/bvh_par2.h"
 
+#include <omp.h>
+
 #include <algorithm>
 #include <chrono>
 #include <iostream>
@@ -14,38 +16,6 @@
 
 namespace raytracer {
 
-namespace {
-
-struct alignas(64) vRay {
-    __m128 o;
-    __m128 d;
-    __m128 d_inv;
-    float t;
-};
-
-bool collision_ray_aabb_sse(const vRay& r4, __m128 aabb_min, __m128 aabb_max) {
-    // mask to keep x,y,z and zero w
-    const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(-1, -1, -1, 0));
-
-    __m128 t0 = _mm_mul_ps(_mm_sub_ps(_mm_and_ps(aabb_min, mask), r4.o), r4.d_inv);
-    __m128 t1 = _mm_mul_ps(_mm_sub_ps(_mm_and_ps(aabb_max, mask), r4.o), r4.d_inv);
-
-    __m128 tmin4 = _mm_min_ps(t0, t1);
-    __m128 tmax4 = _mm_max_ps(t0, t1);
-
-    alignas(16) float tmin_f[4];
-    alignas(16) float tmax_f[4];
-    _mm_store_ps(tmin_f, tmin4);
-    _mm_store_ps(tmax_f, tmax4);
-
-    float tmin = std::max(tmin_f[0], std::max(tmin_f[1], tmin_f[2]));
-    float tmax = std::min(tmax_f[0], std::min(tmax_f[1], tmax_f[2]));
-
-    return (tmax >= tmin) && (tmax > 0.0f);
-}
-
-}  // namespace
-
 BvhPar2::BvhPar2(const nlohmann::json& config) : Ads(config) {
     config_setup(config);
     reset_stats();
@@ -54,7 +24,7 @@ BvhPar2::BvhPar2(const nlohmann::json& config) : Ads(config) {
 void BvhPar2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles) {
     Ads::Build(triangles);
     reset_stats();
-    std::clog << "Building vectorized2 BVH..." << std::endl;
+    std::clog << "Building Parallel2 BVH..." << std::endl;
     Timer build_t;
     bins_duration_ = 0;
 
@@ -66,46 +36,63 @@ void BvhPar2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
     Timer init_t;
 
     // Precalculate tbs, cbs, root cb and cb
-    std::vector<vAABB> tbs;  // Triangle bboxes
-    tbs.reserve(n);
-    std::vector<Point3> tcs;  // Triangle centroids
-    tcs.reserve(n);
+    std::vector<vAABB> tbs(n);   // Triangle bboxes
+    std::vector<Point3> tcs(n);  // Triangle centroids
     __m128 third = _mm_set1_ps(1.0f / 3.0f);
     __m128 vb_min = _mm_set1_ps(infinity);
     __m128 vb_max = _mm_set1_ps(-infinity);
     __m128 cb_min = _mm_set1_ps(infinity);
     __m128 cb_max = _mm_set1_ps(-infinity);
+#pragma omp parallel
+    {
+        __m128 local_vb_min = _mm_set1_ps(infinity);
+        __m128 local_vb_max = _mm_set1_ps(-infinity);
+        __m128 local_cb_min = _mm_set1_ps(infinity);
+        __m128 local_cb_max = _mm_set1_ps(-infinity);
+        alignas(16) float f4[4];
+
+#pragma omp for nowait
+        for (size_t i = 0; i < n; i++) {
+            const auto& t = triangles_[i];
+            /*
+                3x load - triangles vertices
+                2x min + 2x max - triangles aabbs
+                min + max - grow voxel aabb
+                add + mul - triangles centroids
+                min + max - grow centroid aabb
+                3x write - trinagles aabbs and centroids
+            */
+            __m128 v0 = _mm_setr_ps(t->vertices[0].pos.x, t->vertices[0].pos.y, t->vertices[0].pos.z, 0.0f);
+            __m128 v1 = _mm_setr_ps(t->vertices[1].pos.x, t->vertices[1].pos.y, t->vertices[1].pos.z, 0.0f);
+            __m128 v2 = _mm_setr_ps(t->vertices[2].pos.x, t->vertices[2].pos.y, t->vertices[2].pos.z, 0.0f);
+
+            __m128 tbb_min = _mm_min_ps(_mm_min_ps(v0, v1), v2);
+            __m128 tbb_max = _mm_max_ps(_mm_max_ps(v0, v1), v2);
+
+            __m128 tc = _mm_mul_ps(_mm_add_ps(_mm_add_ps(v0, v1), v2), third);
+
+            local_vb_min = _mm_min_ps(local_vb_min, tbb_min);
+            local_vb_max = _mm_max_ps(local_vb_max, tbb_max);
+            local_cb_min = _mm_min_ps(local_cb_min, tc);
+            local_cb_max = _mm_max_ps(local_cb_max, tc);
+
+            tbs[i].min = tbb_min;
+            tbs[i].max = tbb_max;
+
+            _mm_store_ps(f4, tc);
+            tcs[i] = Point3(f4[0], f4[1], f4[2]);
+        }
+
+#pragma omp critical
+        {
+            vb_min = _mm_min_ps(vb_min, local_vb_min);
+            vb_max = _mm_max_ps(vb_max, local_vb_max);
+            cb_min = _mm_min_ps(cb_min, local_cb_min);
+            cb_max = _mm_max_ps(cb_max, local_cb_max);
+        }
+    }
     alignas(16) float f4_dto_1[4];
     alignas(16) float f4_dto_2[4];
-    std::for_each(triangles_.begin(), triangles_.end(), [&](const auto& t) {
-        /*
-            3x load - triangles vertices
-            2x min + 2x max - triangles aabbs
-            min + max - grow voxel aabb
-            add + mul - triangles centroids
-            min + max - grow centroid aabb
-            3x write - trinagles aabbs and centroids
-        */
-        __m128 v0 = _mm_setr_ps(t->vertices[0].pos.x, t->vertices[0].pos.y, t->vertices[0].pos.z, 0.0f);
-        __m128 v1 = _mm_setr_ps(t->vertices[1].pos.x, t->vertices[1].pos.y, t->vertices[1].pos.z, 0.0f);
-        __m128 v2 = _mm_setr_ps(t->vertices[2].pos.x, t->vertices[2].pos.y, t->vertices[2].pos.z, 0.0f);
-
-        __m128 tbb_min = _mm_min_ps(_mm_min_ps(v0, v1), v2);
-        __m128 tbb_max = _mm_max_ps(_mm_max_ps(v0, v1), v2);
-
-        __m128 tc = _mm_mul_ps(_mm_add_ps(_mm_add_ps(v0, v1), v2), third);
-
-        vb_min = _mm_min_ps(vb_min, tbb_min);
-        vb_max = _mm_max_ps(vb_max, tbb_max);
-
-        cb_min = _mm_min_ps(cb_min, tc);
-        cb_max = _mm_max_ps(cb_max, tc);
-
-        tbs.emplace_back(tbb_min, tbb_max);
-
-        _mm_store_ps(f4_dto_1, tc);
-        tcs.emplace_back(f4_dto_1[0], f4_dto_1[1], f4_dto_1[2]);
-    });
     _mm_store_ps(f4_dto_1, vb_min);
     _mm_store_ps(f4_dto_2, vb_max);
     AABB vb({f4_dto_1[0], f4_dto_1[1], f4_dto_1[2]}, {f4_dto_2[0], f4_dto_2[1], f4_dto_2[2]});
@@ -126,8 +113,8 @@ void BvhPar2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
     subdivide(0, 0, cb, tcs, tbs);
 
     std::cout << "  Bins time: " << bins_duration_ / 1000000.0 << " ms" << std::endl;
-    std::cout << "Vectorized2 BVH building time: " << build_t.elapsed_ms() << " ms" << std::endl;
-}
+    std::cout << "Parallel2 BVH building time: " << build_t.elapsed_ms() << " ms" << std::endl;
+}  // namespace raytracer
 
 std::vector<std::shared_ptr<const Triangle>> BvhPar2::Search(const Ray& r, bool first_hit) const {
     search_count_++;
@@ -137,11 +124,6 @@ std::vector<std::shared_ptr<const Triangle>> BvhPar2::Search(const Ray& r, bool 
 
     std::vector<std::shared_ptr<const Triangle>> result;
     result.reserve(max_triangles_per_BB_);
-    vRay r4;
-    r4.o = _mm_setr_ps(r.origin()[0], r.origin()[1], r.origin()[2], 0.0f);
-    r4.d = _mm_setr_ps(r.direction()[0], r.direction()[1], r.direction()[2], 0.0f);
-    r4.d_inv = _mm_div_ps(_mm_set1_ps(1.0f), r4.d);
-    r4.t = r.t_distance();
 
     std::stack<std::pair<size_t, size_t>> s;
     s.emplace(0, 0);
@@ -165,16 +147,10 @@ std::vector<std::shared_ptr<const Triangle>> BvhPar2::Search(const Ray& r, bool 
         const BvhNode& left_child = nodes_[left_child_idx];
         size_t right_child_idx = left_child_idx + 1;
         const BvhNode& right_child = nodes_[right_child_idx];
-        __m128 lc_aabb_min = _mm_setr_ps(left_child.aabb_min[0], left_child.aabb_min[1], left_child.aabb_min[2], 0.0f);
-        __m128 lc_aabb_max = _mm_setr_ps(left_child.aabb_max[0], left_child.aabb_max[1], left_child.aabb_max[2], 0.0f);
-        __m128 rc_aabb_min =
-            _mm_setr_ps(right_child.aabb_min[0], right_child.aabb_min[1], right_child.aabb_min[2], 0.0f);
-        __m128 rc_aabb_max =
-            _mm_setr_ps(right_child.aabb_max[0], right_child.aabb_max[1], right_child.aabb_max[2], 0.0f);
-        if (collision_ray_aabb_sse(r4, lc_aabb_min, lc_aabb_max)) {
+        if (collision_ray_aabb(r, {left_child.aabb_min, left_child.aabb_max})) {
             s.emplace(left_child_idx, depth + 1);
         }
-        if (collision_ray_aabb_sse(r4, rc_aabb_min, rc_aabb_max)) {
+        if (collision_ray_aabb(r, {right_child.aabb_min, right_child.aabb_max})) {
             s.emplace(right_child_idx, depth + 1);
         }
     }
@@ -236,8 +212,8 @@ void BvhPar2::PrintStats(std::ostream& os) const {
     os << "   - Total tris returned: " << stats.search_return_count << "\n\n";
 }
 
-float BvhPar2::find_best_split(BvhNode& node, int& axis, float& split_pos, const AABB& cb, size_t& N_L, size_t& N_R,
-                               AABB& TB_L, AABB& TB_R, const std::vector<Point3>& tcs, const std::vector<vAABB>& tbs) {
+float BvhPar2::find_best_split(BvhNode& node, int& axis, float& split_pos, const AABB& cb, AABB& TB_L, AABB& TB_R,
+                               const std::vector<Point3>& tcs, const std::vector<vAABB>& tbs) {
     // Decide the longest cb axis
     axis = 0;
     if (cb.size.x >= cb.size.y && cb.size.x >= cb.size.z) {
@@ -270,7 +246,7 @@ float BvhPar2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
     }
     alignas(16) float f4_dto_1[4];
     alignas(16) float f4_dto_2[4];
-    for (size_t b = 0; b < bin_count_; b++) {
+    for (int b = 0; b < bin_count_; b++) {
         _mm_store_ps(f4_dto_1, bbs_min[b]);
         _mm_store_ps(f4_dto_2, bbs_max[b]);
         bbs[b] = {{f4_dto_1[0], f4_dto_1[1], f4_dto_1[2]}, {f4_dto_2[0], f4_dto_2[1], f4_dto_2[2]}};
@@ -288,7 +264,7 @@ float BvhPar2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
     TB_Ls[0] = bbs[0];
     A_Ls[0] = TB_Ls[0].surface_area();
 
-    for (size_t i = 1; i < split_count; i++) {
+    for (int i = 1; i < split_count; i++) {
         N_Ls[i] = N_Ls[i - 1] + ns[i];
         TB_Ls[i] = TB_Ls[i - 1];
         TB_Ls[i].expand(bbs[i]);
@@ -313,14 +289,10 @@ float BvhPar2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
             best_split_cost = split_cost;
             split_pos = cb.min[axis] + scale * (i + 1);
 
-            N_L = N_Ls[i];
-            N_R = N_Rs[i];
             TB_L = TB_Ls[i];
             TB_R = TB_Rs[i];
         }
     }
-
-    assert(N_L + N_R == node.t_count);
 
     return best_split_cost;
 }
@@ -338,9 +310,8 @@ void BvhPar2::subdivide(size_t node_idx, int depth, AABB cb, const std::vector<P
     // Find best split
     int axis;
     float split_pos;
-    size_t N_L, N_R;
     AABB TB_L, TB_R;
-    float split_cost = find_best_split(node, axis, split_pos, cb, N_L, N_R, TB_L, TB_R, tcs, tbs);
+    float split_cost = find_best_split(node, axis, split_pos, cb, TB_L, TB_R, tcs, tbs);
 
     // Triangle partitioning
     int i = node.t_begin;
@@ -354,8 +325,12 @@ void BvhPar2::subdivide(size_t node_idx, int depth, AABB cb, const std::vector<P
         }
     }
 
+    // Recalculate N_L and N_R based on actual partitioning
+    size_t N_L = i - node.t_begin;
+    size_t N_R = node.t_count - N_L;
+
     // Abort split if one of the children is empty
-    if (!N_L || !N_R) {
+    if (N_L == 0 || N_R == 0) {
         return;
     }
 
@@ -481,13 +456,13 @@ void BvhPar2::reset_stats() const {
 }
 
 void BvhPar2::config_setup(const nlohmann::json& config) {
-    std::clog << "Configuring vectorized2 BVH..." << std::flush;
+    std::clog << "Configuring parallel2 BVH..." << std::flush;
 
     max_triangles_per_BB_ = config.at("max_triangles_per_BB");
     max_depth_ = config.at("max_depth");
     bin_count_ = config.at("bin_count");
 
-    std::clog << "\rVectorized2 BVH configured     " << std::endl;
+    std::clog << "\rParallel2 BVH configured     " << std::endl;
 }
 
 }  // namespace raytracer
