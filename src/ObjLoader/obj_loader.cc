@@ -192,14 +192,14 @@ Scene LoadScene(const nlohmann::json& loader_config, const nlohmann::json& scene
             for (size_t v = 0; v < fnum; v++) {
                 tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
                 auto vidx = idx.vertex_index;
-                triangle.vertices[v].pos = Vec3(static_cast<const float>(attrib.vertices[3 * vidx + 0]),
-                                                static_cast<const float>(attrib.vertices[3 * vidx + 1]),
-                                                static_cast<const float>(attrib.vertices[3 * vidx + 2]));
+                triangle.vertices[v].pos = Vec3(static_cast<float>(attrib.vertices[3 * vidx + 0]),
+                                                static_cast<float>(attrib.vertices[3 * vidx + 1]),
+                                                static_cast<float>(attrib.vertices[3 * vidx + 2]));
                 auto nidx = idx.normal_index;
                 if (nidx >= 0) {
-                    triangle.vertices[v].norm = Vec3(static_cast<const float>(attrib.normals[3 * nidx + 0]),
-                                                     static_cast<const float>(attrib.normals[3 * nidx + 1]),
-                                                     static_cast<const float>(attrib.normals[3 * nidx + 2]));
+                    triangle.vertices[v].norm = Vec3(static_cast<float>(attrib.normals[3 * nidx + 0]),
+                                                     static_cast<float>(attrib.normals[3 * nidx + 1]),
+                                                     static_cast<float>(attrib.normals[3 * nidx + 2]));
                 }
             }
             triangle.material_id = shapes[i].mesh.material_ids[f];

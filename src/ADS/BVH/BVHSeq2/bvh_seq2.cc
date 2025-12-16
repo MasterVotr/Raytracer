@@ -197,7 +197,7 @@ float BvhSeq2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
     TB_Ls[0] = bbs[0];
     A_Ls[0] = TB_Ls[0].surface_area();
 
-    for (size_t i = 1; i < split_count; i++) {
+    for (int i = 1; i < split_count; i++) {
         N_Ls[i] = N_Ls[i - 1] + ns[i];
         TB_Ls[i] = TB_Ls[i - 1];
         TB_Ls[i].expand(bbs[i]);

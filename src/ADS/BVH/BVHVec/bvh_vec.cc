@@ -125,7 +125,7 @@ std::vector<int> calculate_bin_ids(const AABB& cb, const raytracer::PointSoA& cs
     A_R_j - sourface area of the bb_i of all B_i on the right side of the split j
     cost_j - const of split j - A_L_j * N_L_j + A_R_j * N_R_j
 */
-size_t calculate_best_split_and_bins(BinningBuffers& binning_buffers, size_t& N_L, size_t& N_R, AABB& TB_L, AABB& TB_R,
+int calculate_best_split_and_bins(BinningBuffers& binning_buffers, size_t& N_L, size_t& N_R, AABB& TB_L, AABB& TB_R,
                                      const raytracer::AABBSoA& tbs, const std::vector<int>& triangle_indices,
                                      std::vector<int>& binIDs, size_t K, size_t t_begin, size_t t_count) {
     // Setup binning buffers
@@ -450,7 +450,7 @@ void BvhVec::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles
         AABB TB_L, TB_R;  // child triangle bounds
 
         start_time_tmp = std::chrono::high_resolution_clock::now();
-        size_t best_split = calculate_best_split_and_bins(binning_buffers, N_L, N_R, TB_L, TB_R, tbs, triangle_indices_,
+        int best_split = calculate_best_split_and_bins(binning_buffers, N_L, N_R, TB_L, TB_R, tbs, triangle_indices_,
                                                           binIDs, bin_count_, t_begin, t_count);
         end_time_tmp = std::chrono::high_resolution_clock::now();
         calculate_best_split_and_bins_duration +=

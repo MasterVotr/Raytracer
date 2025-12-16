@@ -70,7 +70,7 @@ class BvhSeq2 : public Ads {
 
     // Config variables
     size_t max_triangles_per_BB_;
-    size_t max_depth_;
+    int max_depth_;
     int bin_count_;
 
     // Statistics variables

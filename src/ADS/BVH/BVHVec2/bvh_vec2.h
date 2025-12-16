@@ -70,8 +70,8 @@ class BvhVec2 : public Ads {
     };
 
     // Helper methods
-    float find_best_split(BvhNode& node, int& axis, float& split_pos, const AABB& cb, size_t& N_L, size_t& N_R,
-                          AABB& TB_L, AABB& TB_R, const std::vector<Point3>& tcs, const std::vector<vAABB>& tbs);
+    float find_best_split(BvhNode& node, int& axis, float& split_pos, const AABB& cb, AABB& TB_L, AABB& TB_R,
+                          const std::vector<Point3>& tcs, const std::vector<vAABB>& tbs);
     void subdivide(size_t node_idx, int depth, AABB cb, const std::vector<Point3>& tcs, const std::vector<vAABB>& tbs);
 
     void config_setup(const nlohmann::json& config);
@@ -84,7 +84,7 @@ class BvhVec2 : public Ads {
 
     // Config variables
     size_t max_triangles_per_BB_;
-    size_t max_depth_;
+    int max_depth_;
     int bin_count_;
 
     // Statistics variables
