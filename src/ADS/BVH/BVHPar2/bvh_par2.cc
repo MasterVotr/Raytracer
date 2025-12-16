@@ -23,6 +23,27 @@ struct alignas(64) vRay {
     float t;
 };
 
+bool collision_ray_aabb_sse(const vRay& r4, __m128 aabb_min, __m128 aabb_max) {
+    // mask to keep x,y,z and zero w
+    const __m128 mask = _mm_castsi128_ps(_mm_setr_epi32(-1, -1, -1, 0));
+
+    __m128 t0 = _mm_mul_ps(_mm_sub_ps(_mm_and_ps(aabb_min, mask), r4.o), r4.d_inv);
+    __m128 t1 = _mm_mul_ps(_mm_sub_ps(_mm_and_ps(aabb_max, mask), r4.o), r4.d_inv);
+
+    __m128 tmin4 = _mm_min_ps(t0, t1);
+    __m128 tmax4 = _mm_max_ps(t0, t1);
+
+    alignas(16) float tmin_f[4];
+    alignas(16) float tmax_f[4];
+    _mm_store_ps(tmin_f, tmin4);
+    _mm_store_ps(tmax_f, tmax4);
+
+    float tmin = std::max(tmin_f[0], std::max(tmin_f[1], tmin_f[2]));
+    float tmax = std::min(tmax_f[0], std::min(tmax_f[1], tmax_f[2]));
+
+    return (tmax >= tmin) && (tmax > 0.0f);
+}
+
 }  // namespace
 
 BvhPar2::BvhPar2(const nlohmann::json& config) : Ads(config) {
@@ -116,6 +137,11 @@ std::vector<std::shared_ptr<const Triangle>> BvhPar2::Search(const Ray& r, bool 
 
     std::vector<std::shared_ptr<const Triangle>> result;
     result.reserve(max_triangles_per_BB_);
+    vRay r4;
+    r4.o = _mm_setr_ps(r.origin()[0], r.origin()[1], r.origin()[2], 0.0f);
+    r4.d = _mm_setr_ps(r.direction()[0], r.direction()[1], r.direction()[2], 0.0f);
+    r4.d_inv = _mm_div_ps(_mm_set1_ps(1.0f), r4.d);
+    r4.t = r.t_distance();
 
     std::stack<std::pair<size_t, size_t>> s;
     s.emplace(0, 0);
@@ -139,10 +165,16 @@ std::vector<std::shared_ptr<const Triangle>> BvhPar2::Search(const Ray& r, bool 
         const BvhNode& left_child = nodes_[left_child_idx];
         size_t right_child_idx = left_child_idx + 1;
         const BvhNode& right_child = nodes_[right_child_idx];
-        if (collision_ray_aabb(r, {left_child.aabb_min, left_child.aabb_max})) {
+        __m128 lc_aabb_min = _mm_setr_ps(left_child.aabb_min[0], left_child.aabb_min[1], left_child.aabb_min[2], 0.0f);
+        __m128 lc_aabb_max = _mm_setr_ps(left_child.aabb_max[0], left_child.aabb_max[1], left_child.aabb_max[2], 0.0f);
+        __m128 rc_aabb_min =
+            _mm_setr_ps(right_child.aabb_min[0], right_child.aabb_min[1], right_child.aabb_min[2], 0.0f);
+        __m128 rc_aabb_max =
+            _mm_setr_ps(right_child.aabb_max[0], right_child.aabb_max[1], right_child.aabb_max[2], 0.0f);
+        if (collision_ray_aabb_sse(r4, lc_aabb_min, lc_aabb_max)) {
             s.emplace(left_child_idx, depth + 1);
         }
-        if (collision_ray_aabb(r, {right_child.aabb_min, right_child.aabb_max})) {
+        if (collision_ray_aabb_sse(r4, rc_aabb_min, rc_aabb_max)) {
             s.emplace(right_child_idx, depth + 1);
         }
     }
