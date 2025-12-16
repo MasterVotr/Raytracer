@@ -57,7 +57,7 @@ void BvhSeq2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
 
     subdivide(0, 0, cb, tcs, tbs);
 
-    std::cout << "  Bins time: " << bins_duration_/ 1000000.0 << " ms" << std::endl;
+    std::cout << "  Bins time: " << bins_duration_ / 1000000.0 << " ms" << std::endl;
     std::cout << "Sequential2 BVH building time: " << build_t.elapsed_ms() << " ms" << std::endl;
 }
 
@@ -157,8 +157,8 @@ void BvhSeq2::PrintStats(std::ostream& os) const {
     os << "   - Total tris returned: " << stats.search_return_count << "\n\n";
 }
 
-float BvhSeq2::find_best_split(BvhNode& node, int& axis, float& split_pos, const AABB& cb, size_t& N_L, size_t& N_R,
-                               AABB& TB_L, AABB& TB_R, const std::vector<Point3>& tcs, const std::vector<AABB>& tbs) {
+float BvhSeq2::find_best_split(BvhNode& node, int& axis, float& split_pos, const AABB& cb, AABB& TB_L, AABB& TB_R,
+                               const std::vector<Point3>& tcs, const std::vector<AABB>& tbs) {
     // Decide the longest cb axis
     axis = 0;
     if (cb.size.x >= cb.size.y && cb.size.x >= cb.size.z) {
@@ -184,7 +184,7 @@ float BvhSeq2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
         bbs[bin_idx].expand(tbs[t_idx]);
         ns[bin_idx]++;
     }
-    bins_duration_+= t_bins.elapsed_ns();
+    bins_duration_ += t_bins.elapsed_ns();
 
     // Prefix sum calculation left->right
     float best_split_cost = infinity;
@@ -222,14 +222,10 @@ float BvhSeq2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
             best_split_cost = split_cost;
             split_pos = cb.min[axis] + scale * (i + 1);
 
-            N_L = N_Ls[i];
-            N_R = N_Rs[i];
             TB_L = TB_Ls[i];
             TB_R = TB_Rs[i];
         }
     }
-
-    assert(N_L + N_R == node.t_count);
 
     return best_split_cost;
 }
@@ -247,9 +243,8 @@ void BvhSeq2::subdivide(size_t node_idx, int depth, AABB cb, const std::vector<P
     // Find best split
     int axis;
     float split_pos;
-    size_t N_L, N_R;
     AABB TB_L, TB_R;
-    float split_cost = find_best_split(node, axis, split_pos, cb, N_L, N_R, TB_L, TB_R, tcs, tbs);
+    float split_cost = find_best_split(node, axis, split_pos, cb, TB_L, TB_R, tcs, tbs);
 
     // Triangle partitioning
     int i = node.t_begin;
@@ -263,8 +258,12 @@ void BvhSeq2::subdivide(size_t node_idx, int depth, AABB cb, const std::vector<P
         }
     }
 
+    // Recalculate N_L and N_R based on actual partitioning
+    size_t N_L = i - node.t_begin;
+    size_t N_R = node.t_count - N_L;
+
     // Abort split if one of the children is empty
-    if (!N_L || !N_R) {
+    if (N_L == 0 || N_R == 0) {
         return;
     }
 

@@ -55,8 +55,8 @@ class BvhSeq2 : public Ads {
     };
 
     // Helper methods
-    float find_best_split(BvhNode& node, int& axis, float& split_pos, const AABB& cb, size_t& N_L, size_t& N_R,
-                          AABB& TB_L, AABB& TB_R, const std::vector<Point3>& tcs, const std::vector<AABB>& tbs);
+    float find_best_split(BvhNode& node, int& axis, float& split_pos, const AABB& cb, AABB& TB_L, AABB& TB_R,
+                          const std::vector<Point3>& tcs, const std::vector<AABB>& tbs);
     void subdivide(size_t node_idx, int depth, AABB cb, const std::vector<Point3>& tcs, const std::vector<AABB>& tbs);
     void update_node_boudns(size_t node_idx, const std::vector<Point3>& tbs);
 
