@@ -12,6 +12,7 @@ class Ray {
     inline const Point3& origin() const { return orig_; }
     inline const Vec3& direction() const { return dir_; }
     inline float& t_distance() { return t_; }
+    inline float t_distance() const { return t_; }
     inline Point3 at(float t) const { return orig_ + dir_ * t; }
 
    private:
