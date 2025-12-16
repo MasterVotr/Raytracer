@@ -34,10 +34,8 @@ void BvhVec2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
     Timer init_t;
 
     // Precalculate tbs, cbs, root cb and cb
-    std::vector<vAABB> tbs;  // Triangle bboxes
-    tbs.reserve(n);
-    std::vector<Point3> tcs;  // Triangle centroids
-    tcs.reserve(n);
+    std::vector<vAABB> tbs(n);   // Triangle bboxes
+    std::vector<Point3> tcs(n);  // Triangle centroids
     __m128 third = _mm_set1_ps(1.0f / 3.0f);
     __m128 vb_min = _mm_set1_ps(infinity);
     __m128 vb_max = _mm_set1_ps(-infinity);
@@ -45,7 +43,8 @@ void BvhVec2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
     __m128 cb_max = _mm_set1_ps(-infinity);
     alignas(16) float f4_dto_1[4];
     alignas(16) float f4_dto_2[4];
-    std::for_each(triangles_.begin(), triangles_.end(), [&](const auto& t) {
+    for (size_t i = 0; i < n; i++) {
+        const auto& t = triangles_[i];
         /*
             3x load - triangles vertices
             2x min + 2x max - triangles aabbs
@@ -69,11 +68,12 @@ void BvhVec2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
         cb_min = _mm_min_ps(cb_min, tc);
         cb_max = _mm_max_ps(cb_max, tc);
 
-        tbs.emplace_back(tbb_min, tbb_max);
+        tbs[i].min = tbb_min;
+        tbs[i].max = tbb_max;
 
         _mm_store_ps(f4_dto_1, tc);
-        tcs.emplace_back(f4_dto_1[0], f4_dto_1[1], f4_dto_1[2]);
-    });
+        tcs[i] = Point3(f4_dto_1[0], f4_dto_1[1], f4_dto_1[2]);
+    }
     _mm_store_ps(f4_dto_1, vb_min);
     _mm_store_ps(f4_dto_2, vb_max);
     AABB vb({f4_dto_1[0], f4_dto_1[1], f4_dto_1[2]}, {f4_dto_2[0], f4_dto_2[1], f4_dto_2[2]});
