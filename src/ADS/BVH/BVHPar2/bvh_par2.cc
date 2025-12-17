@@ -232,18 +232,40 @@ float BvhPar2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
     std::vector<__m128> bbs_min(bin_count_, inf4);
     std::vector<__m128> bbs_max(bin_count_, neg_inf4);
     std::vector<size_t> ns(bin_count_, 0);
+    int t_cnt = omp_get_max_threads();
+    std::vector<std::vector<__m128>> all_bbs_min(t_cnt, std::vector<__m128>(bin_count_, inf4));
+    std::vector<std::vector<__m128>> all_bbs_max(t_cnt, std::vector<__m128>(bin_count_, neg_inf4));
+    std::vector<std::vector<size_t>> all_ns(t_cnt, std::vector<size_t>(bin_count_, 0));
 
     float k_0 = cb.min[axis];
     float k_1 = bin_count_ * (1 - 1e-3) /
                 cb.size[axis];  // Possible problem with bin_idx being K (bin_count) - epsilon was too big
-    for (size_t t = node.t_begin; t < node.t_begin + node.t_count; t++) {
-        size_t t_idx = tri_idxs_[t];
-        size_t bin_idx = std::min(bin_count_ - 1, static_cast<int>(k_1 * (tcs[t_idx][axis] - k_0)));
+// TODO implement horizontal threshold
+#pragma omp parallel
+    {
+        int t_id = omp_get_thread_num();
+        auto& local_bbs_min = all_bbs_min[t_id];
+        auto& local_bbs_max = all_bbs_max[t_id];
+        auto& local_ns = all_ns[t_id];
 
-        bbs_min[bin_idx] = _mm_min_ps(bbs_min[bin_idx], tbs[t_idx].min);
-        bbs_max[bin_idx] = _mm_max_ps(bbs_max[bin_idx], tbs[t_idx].max);
-        ns[bin_idx]++;
+#pragma omp for nowait
+        for (size_t t = node.t_begin; t < node.t_begin + node.t_count; t++) {
+            size_t t_idx = tri_idxs_[t];
+            size_t bin_idx = std::min(bin_count_ - 1, static_cast<int>(k_1 * (tcs[t_idx][axis] - k_0)));
+
+            local_bbs_min[bin_idx] = _mm_min_ps(local_bbs_min[bin_idx], tbs[t_idx].min);
+            local_bbs_max[bin_idx] = _mm_max_ps(local_bbs_max[bin_idx], tbs[t_idx].max);
+            local_ns[bin_idx]++;
+        }
     }
+    for (int t_id = 0; t_id < t_cnt; t_id++) {
+        for (int b = 0; b < bin_count_; b++) {
+            bbs_min[b] = _mm_min_ps(bbs_min[b], all_bbs_min[t_id][b]);
+            bbs_max[b] = _mm_max_ps(bbs_max[b], all_bbs_max[t_id][b]);
+            ns[b] += all_ns[t_id][b];
+        }
+    }
+
     alignas(16) float f4_dto_1[4];
     alignas(16) float f4_dto_2[4];
     for (int b = 0; b < bin_count_; b++) {
