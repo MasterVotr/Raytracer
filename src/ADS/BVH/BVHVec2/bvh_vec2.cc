@@ -25,6 +25,8 @@ void BvhVec2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
     std::clog << "Building vectorized2 BVH..." << std::endl;
     Timer build_t;
     bins_duration_ = 0;
+    bins_seq_duration_ = 0;
+    bins_sync_duration_ = 0;
 
     // Clear nodes_ and tri_idxs
     size_t n = triangles_.size();
@@ -94,6 +96,8 @@ void BvhVec2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
     subdivide(0, 0, cb, tcs, tbs);
 
     std::cout << "  Bins time: " << bins_duration_ / 1000000.0 << " ms" << std::endl;
+    std::cout << "    seq time: " << bins_seq_duration_ / 1000000.0 << " ms" << std::endl;
+    std::cout << "    sync time: " << bins_sync_duration_ / 1000000.0 << " ms" << std::endl;
     std::cout << "Vectorized2 BVH building time: " << build_t.elapsed_ms() << " ms" << std::endl;
 }
 
@@ -225,6 +229,8 @@ float BvhVec2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
         bbs_max[bin_idx] = _mm_max_ps(bbs_max[bin_idx], tbs[t_idx].max);
         ns[bin_idx]++;
     }
+    bins_seq_duration_ += t_bins.elapsed_ns();
+    Timer t_bins_sync;
     alignas(16) float f4_dto_1[4];
     alignas(16) float f4_dto_2[4];
     for (int b = 0; b < bin_count_; b++) {
@@ -232,6 +238,7 @@ float BvhVec2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
         _mm_store_ps(f4_dto_2, bbs_max[b]);
         bbs[b] = {{f4_dto_1[0], f4_dto_1[1], f4_dto_1[2]}, {f4_dto_2[0], f4_dto_2[1], f4_dto_2[2]}};
     }
+    bins_sync_duration_ += t_bins_sync.elapsed_ns();
     bins_duration_ += t_bins.elapsed_ns();
 
     // Prefix sum calculation left->right

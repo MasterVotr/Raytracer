@@ -102,6 +102,8 @@ class BvhVec2 : public Ads {
     mutable size_t search_max_leaves_visited_;
     mutable size_t search_leaves_visited_;
     mutable size_t bins_duration_;
+    mutable size_t bins_seq_duration_;
+    mutable size_t bins_sync_duration_;
 };
 
 }  // namespace raytracer
