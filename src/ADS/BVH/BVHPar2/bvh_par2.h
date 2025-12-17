@@ -86,6 +86,7 @@ class BvhPar2 : public Ads {
     size_t max_triangles_per_BB_;
     int max_depth_;
     int bin_count_;
+    int horizontal_threshold_;
 
     // Statistics variables
     mutable size_t search_count_;
@@ -102,6 +103,9 @@ class BvhPar2 : public Ads {
     mutable size_t search_max_leaves_visited_;
     mutable size_t search_leaves_visited_;
     mutable size_t bins_duration_;
+    mutable size_t bins_par_duration_;
+    mutable size_t bins_seq_duration_;
+    mutable size_t bins_sync_duration_;
 };
 
 }  // namespace raytracer

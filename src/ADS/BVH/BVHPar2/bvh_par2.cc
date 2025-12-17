@@ -27,6 +27,9 @@ void BvhPar2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
     std::clog << "Building Parallel2 BVH..." << std::endl;
     Timer build_t;
     bins_duration_ = 0;
+    bins_par_duration_ = 0;
+    bins_seq_duration_ = 0;
+    bins_sync_duration_ = 0;
 
     // Clear nodes_ and tri_idxs
     size_t n = triangles_.size();
@@ -113,6 +116,9 @@ void BvhPar2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
     subdivide(0, 0, cb, tcs, tbs);
 
     std::cout << "  Bins time: " << bins_duration_ / 1000000.0 << " ms" << std::endl;
+    std::cout << "    par time: " << bins_par_duration_ / 1'000'000.0 << " ms" << std::endl;
+    std::cout << "    seq time: " << bins_seq_duration_ / 1'000'000.0 << " ms" << std::endl;
+    std::cout << "    sync time: " << bins_sync_duration_ / 1'000'000.0 << " ms" << std::endl;
     std::cout << "Parallel2 BVH building time: " << build_t.elapsed_ms() << " ms" << std::endl;
 }  // namespace raytracer
 
@@ -232,39 +238,53 @@ float BvhPar2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
     std::vector<__m128> bbs_min(bin_count_, inf4);
     std::vector<__m128> bbs_max(bin_count_, neg_inf4);
     std::vector<size_t> ns(bin_count_, 0);
-    int t_cnt = omp_get_max_threads();
-    std::vector<std::vector<__m128>> all_bbs_min(t_cnt, std::vector<__m128>(bin_count_, inf4));
-    std::vector<std::vector<__m128>> all_bbs_max(t_cnt, std::vector<__m128>(bin_count_, neg_inf4));
-    std::vector<std::vector<size_t>> all_ns(t_cnt, std::vector<size_t>(bin_count_, 0));
-
     float k_0 = cb.min[axis];
     float k_1 = bin_count_ * (1 - 1e-3) /
                 cb.size[axis];  // Possible problem with bin_idx being K (bin_count) - epsilon was too big
-// TODO implement horizontal threshold
+
+    if (node.t_count > horizontal_threshold_) {
+        int t_cnt = omp_get_max_threads();
+        std::vector<std::vector<__m128>> all_bbs_min(t_cnt, std::vector<__m128>(bin_count_, inf4));
+        std::vector<std::vector<__m128>> all_bbs_max(t_cnt, std::vector<__m128>(bin_count_, neg_inf4));
+        std::vector<std::vector<size_t>> all_ns(t_cnt, std::vector<size_t>(bin_count_, 0));
+
 #pragma omp parallel
-    {
-        int t_id = omp_get_thread_num();
-        auto& local_bbs_min = all_bbs_min[t_id];
-        auto& local_bbs_max = all_bbs_max[t_id];
-        auto& local_ns = all_ns[t_id];
+        {
+            int t_id = omp_get_thread_num();
+            auto& local_bbs_min = all_bbs_min[t_id];
+            auto& local_bbs_max = all_bbs_max[t_id];
+            auto& local_ns = all_ns[t_id];
 
 #pragma omp for nowait
+            for (size_t t = node.t_begin; t < node.t_begin + node.t_count; t++) {
+                size_t t_idx = tri_idxs_[t];
+                size_t bin_idx = std::min(bin_count_ - 1, static_cast<int>(k_1 * (tcs[t_idx][axis] - k_0)));
+
+                local_bbs_min[bin_idx] = _mm_min_ps(local_bbs_min[bin_idx], tbs[t_idx].min);
+                local_bbs_max[bin_idx] = _mm_max_ps(local_bbs_max[bin_idx], tbs[t_idx].max);
+                local_ns[bin_idx]++;
+            }
+        }
+        for (int t_id = 0; t_id < t_cnt; t_id++) {
+            for (int b = 0; b < bin_count_; b++) {
+                bbs_min[b] = _mm_min_ps(bbs_min[b], all_bbs_min[t_id][b]);
+                bbs_max[b] = _mm_max_ps(bbs_max[b], all_bbs_max[t_id][b]);
+                ns[b] += all_ns[t_id][b];
+            }
+        }
+        bins_par_duration_ += t_bins.elapsed_ns();
+    } else {
         for (size_t t = node.t_begin; t < node.t_begin + node.t_count; t++) {
             size_t t_idx = tri_idxs_[t];
             size_t bin_idx = std::min(bin_count_ - 1, static_cast<int>(k_1 * (tcs[t_idx][axis] - k_0)));
 
-            local_bbs_min[bin_idx] = _mm_min_ps(local_bbs_min[bin_idx], tbs[t_idx].min);
-            local_bbs_max[bin_idx] = _mm_max_ps(local_bbs_max[bin_idx], tbs[t_idx].max);
-            local_ns[bin_idx]++;
+            bbs_min[bin_idx] = _mm_min_ps(bbs_min[bin_idx], tbs[t_idx].min);
+            bbs_max[bin_idx] = _mm_max_ps(bbs_max[bin_idx], tbs[t_idx].max);
+            ns[bin_idx]++;
         }
+        bins_seq_duration_ += t_bins.elapsed_ns();
     }
-    for (int t_id = 0; t_id < t_cnt; t_id++) {
-        for (int b = 0; b < bin_count_; b++) {
-            bbs_min[b] = _mm_min_ps(bbs_min[b], all_bbs_min[t_id][b]);
-            bbs_max[b] = _mm_max_ps(bbs_max[b], all_bbs_max[t_id][b]);
-            ns[b] += all_ns[t_id][b];
-        }
-    }
+    Timer t_bins_sync;
 
     alignas(16) float f4_dto_1[4];
     alignas(16) float f4_dto_2[4];
@@ -273,6 +293,7 @@ float BvhPar2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
         _mm_store_ps(f4_dto_2, bbs_max[b]);
         bbs[b] = {{f4_dto_1[0], f4_dto_1[1], f4_dto_1[2]}, {f4_dto_2[0], f4_dto_2[1], f4_dto_2[2]}};
     }
+    bins_sync_duration_ += t_bins_sync.elapsed_ns();
     bins_duration_ += t_bins.elapsed_ns();
 
     // Prefix sum calculation left->right
@@ -483,6 +504,7 @@ void BvhPar2::config_setup(const nlohmann::json& config) {
     max_triangles_per_BB_ = config.at("max_triangles_per_BB");
     max_depth_ = config.at("max_depth");
     bin_count_ = config.at("bin_count");
+    horizontal_threshold_ = config.at("horizontal_threshold");
 
     std::clog << "\rParallel2 BVH configured     " << std::endl;
 }
