@@ -30,11 +30,27 @@ void BvhPar2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
     bins_par_duration_ = 0;
     bins_seq_duration_ = 0;
     bins_sync_duration_ = 0;
+    partitioning_seq_duration_ = 0;
+    partitioning_par_duration_ = 0;
+    partitioning_misc_duration_ = 0;
+    partitioning_duration_ = 0;
+
+    int max_threads = omp_get_max_threads();
+    int num_threads = omp_get_num_threads();
+    char* omp_env = std::getenv("OMP_NUM_THREADS");
+    std::cout << "Max threads (omp_get_max_threads): " << max_threads << std::endl;
+    std::cout << "Current threads (omp_get_num_threads): " << num_threads << std::endl;
+    if (omp_env) {
+        std::cout << "OMP_NUM_THREADS: " << omp_env << std::endl;
+    } else {
+        std::cout << "OMP_NUM_THREADS not set." << std::endl;
+    }
 
     // Clear nodes_ and tri_idxs
     size_t n = triangles_.size();
     nodes_.resize(2 * n - 1);
     tri_idxs_.resize(n);
+    partition_buffer_.resize(n);
     std::iota(tri_idxs_.begin(), tri_idxs_.end(), 0);
     Timer init_t;
 
@@ -115,11 +131,17 @@ void BvhPar2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
 
     subdivide(0, 0, cb, tcs, tbs);
 
-    std::cout << "  Bins time: " << bins_duration_ / 1000000.0 << " ms" << std::endl;
-    std::cout << "    par time: " << bins_par_duration_ / 1'000'000.0 << " ms" << std::endl;
-    std::cout << "    seq time: " << bins_seq_duration_ / 1'000'000.0 << " ms" << std::endl;
-    std::cout << "    sync time: " << bins_sync_duration_ / 1'000'000.0 << " ms" << std::endl;
-    std::cout << "Parallel2 BVH building time: " << build_t.elapsed_ms() << " ms" << std::endl;
+    std::cout << std::fixed << std::setprecision(4);
+    std::cout << "  Bins time: " << (bins_duration_ / 1'000'000.0) << " ms\n";
+    std::cout << "    par time: " << (bins_par_duration_ / 1'000'000.0) << " ms\n";
+    std::cout << "    seq time: " << (bins_seq_duration_ / 1'000'000.0) << " ms\n";
+    std::cout << "    sync time: " << (bins_sync_duration_ / 1'000'000.0) << " ms\n";
+    std::cout << "  Partitioning time: " << (partitioning_duration_ / 1'000'000.0) << " ms\n";
+    std::cout << "    seq time: " << (partitioning_seq_duration_ / 1'000'000.0) << " ms\n";
+    std::cout << "    par time: " << (partitioning_par_duration_ / 1'000'000.0) << " ms\n";
+    std::cout << "    misc time: " << (partitioning_misc_duration_ / 1'000'000.0) << " ms\n";
+    std::cout << "Parallel2 BVH building time: " << build_t.elapsed_ms() << " ms\n";
+    std::cout.unsetf(std::ios::fixed);
 }  // namespace raytracer
 
 std::vector<std::shared_ptr<const Triangle>> BvhPar2::Search(const Ray& r, bool first_hit) const {
@@ -248,7 +270,7 @@ float BvhPar2::find_best_split(BvhNode& node, int& axis, float& split_pos, const
         std::vector<std::vector<__m128>> all_bbs_max(t_cnt, std::vector<__m128>(bin_count_, neg_inf4));
         std::vector<std::vector<size_t>> all_ns(t_cnt, std::vector<size_t>(bin_count_, 0));
 
-#pragma omp parallel
+#pragma omp parallel num_threads(t_cnt)
         {
             int t_id = omp_get_thread_num();
             auto& local_bbs_min = all_bbs_min[t_id];
@@ -357,23 +379,128 @@ void BvhPar2::subdivide(size_t node_idx, int depth, AABB cb, const std::vector<P
     float split_cost = find_best_split(node, axis, split_pos, cb, TB_L, TB_R, tcs, tbs);
 
     // Triangle partitioning
-    int i = node.t_begin;
-    int j = node.t_begin + node.t_count - 1;
-    while (i <= j) {
-        if (tcs[tri_idxs_[i]][axis] < split_pos) {
-            i++;
-        } else {
-            std::swap(tri_idxs_[i], tri_idxs_[j]);
-            j--;
-        }
-    }
+    Timer t_partitioning;
+    size_t N_L = 0;
+    size_t N_R = 0;
+    AABB CB_L, CB_R;
 
-    // Recalculate N_L and N_R based on actual partitioning
-    size_t N_L = i - node.t_begin;
-    size_t N_R = node.t_count - N_L;
+    if (node.t_count > horizontal_threshold_) {
+        int max_threads = omp_get_max_threads();
+        std::vector<size_t> count_L(max_threads, 0);
+        std::vector<size_t> count_R(max_threads, 0);
+        std::vector<AABB> local_CB_L(max_threads);
+        std::vector<AABB> local_CB_R(max_threads);
+        std::vector<size_t> offset_L(max_threads);
+        std::vector<size_t> offset_R(max_threads);
+
+#pragma omp parallel num_threads(max_threads)
+        {
+            int tid = omp_get_thread_num();
+            int n_threads = omp_get_num_threads();
+            if (n_threads != max_threads) {
+                std::cerr << "[t:" << tid << "] Error: omp_get_num_threads() != max_threads (" << n_threads
+                          << " != " << max_threads << ")" << std::endl;
+                std::exit(EXIT_FAILURE);
+            }
+
+            // 1. Count and Local Bounds
+            size_t chunk_size = (node.t_count + n_threads - 1) / n_threads;
+            size_t start = node.t_begin + tid * chunk_size;
+            size_t end = std::min(node.t_begin + node.t_count, start + chunk_size);
+
+            if (start < end) {
+                for (size_t k = start; k < end; ++k) {
+                    uint32_t t_idx = tri_idxs_[k];
+                    if (tcs[t_idx][axis] < split_pos) {
+                        count_L[tid]++;
+                        local_CB_L[tid].expand(tcs[t_idx]);
+                    } else {
+                        count_R[tid]++;
+                        local_CB_R[tid].expand(tcs[t_idx]);
+                    }
+                }
+            }
+
+#pragma omp barrier
+
+            // 2. Prefix Sums
+#pragma omp single
+            {
+                size_t current_L = node.t_begin;
+                size_t current_R = 0;  // Will add total_L later
+
+                for (int i = 0; i < n_threads; ++i) {
+                    offset_L[i] = current_L;
+                    current_L += count_L[i];
+                }
+                size_t total_L = current_L - node.t_begin;
+                current_R = node.t_begin + total_L;
+
+                for (int i = 0; i < n_threads; ++i) {
+                    offset_R[i] = current_R;
+                    current_R += count_R[i];
+                }
+
+                N_L = total_L;
+                N_R = node.t_count - N_L;
+            }  // Implicit barrier
+
+            // 3. Move
+            if (start < end) {
+                size_t write_L = offset_L[tid];
+                size_t write_R = offset_R[tid];
+
+                for (size_t k = start; k < end; ++k) {
+                    uint32_t t_idx = tri_idxs_[k];
+                    if (tcs[t_idx][axis] < split_pos) {
+                        partition_buffer_[write_L++] = t_idx;
+                    } else {
+                        partition_buffer_[write_R++] = t_idx;
+                    }
+                }
+            }
+
+#pragma omp barrier
+
+            // 4. Copy Back
+#pragma omp for
+            for (size_t k = 0; k < node.t_count; ++k) {
+                tri_idxs_[node.t_begin + k] = partition_buffer_[node.t_begin + k];
+            }
+
+            // 5. Merge Bounds
+#pragma omp single
+            {
+                for (int i = 0; i < n_threads; ++i) {
+                    CB_L.expand(local_CB_L[i]);
+                    CB_R.expand(local_CB_R[i]);
+                }
+            }
+        }
+        partitioning_par_duration_ += t_partitioning.elapsed_ns();
+    } else {
+        int i = node.t_begin;
+        int j = node.t_begin + node.t_count - 1;
+        while (i <= j) {
+            if (tcs[tri_idxs_[i]][axis] < split_pos) {
+                CB_L.expand(tcs[tri_idxs_[i]]);
+                i++;
+            } else {
+                CB_R.expand(tcs[tri_idxs_[i]]);
+                std::swap(tri_idxs_[i], tri_idxs_[j]);
+                j--;
+            }
+        }
+        N_L = i - node.t_begin;
+        N_R = node.t_count - N_L;
+        partitioning_seq_duration_ += t_partitioning.elapsed_ns();
+    }
+    Timer t_misc;
 
     // Abort split if one of the children is empty
     if (N_L == 0 || N_R == 0) {
+        partitioning_misc_duration_ += t_misc.elapsed_ns();
+        partitioning_duration_ += t_partitioning.elapsed_ns();
         return;
     }
 
@@ -394,20 +521,8 @@ void BvhPar2::subdivide(size_t node_idx, int depth, AABB cb, const std::vector<P
     node.t_begin = left_child_idx;
     node.t_count = 0;
 
-    // Calculate new centroid bboxes
-    AABB CB_L;
-    size_t t_start_L = nodes_[left_child_idx].t_begin;
-    size_t t_end_L = nodes_[left_child_idx].t_begin + nodes_[left_child_idx].t_count;
-    for (size_t i = t_start_L; i < t_end_L; i++) {
-        CB_L.expand(tcs[tri_idxs_[i]]);
-    }
-
-    AABB CB_R;
-    size_t t_start_R = nodes_[right_child_idx].t_begin;
-    size_t t_end_R = nodes_[right_child_idx].t_begin + nodes_[right_child_idx].t_count;
-    for (size_t i = t_start_R; i < t_end_R; i++) {
-        CB_R.expand(tcs[tri_idxs_[i]]);
-    }
+    partitioning_misc_duration_ += t_misc.elapsed_ns();
+    partitioning_duration_ += t_partitioning.elapsed_ns();
 
     // Subdivide recursively
     subdivide(left_child_idx, depth + 1, CB_L, tcs, tbs);

@@ -80,6 +80,7 @@ class BvhPar2 : public Ads {
 
     std::vector<BvhNode> nodes_;  // root node at idx 0, child nodes are parent node_idx*2+1 and node_idx*2+2
     std::vector<uint> tri_idxs_;
+    std::vector<uint> partition_buffer_;
     size_t next_bvh_node_idx_;
 
     // Config variables
@@ -102,10 +103,15 @@ class BvhPar2 : public Ads {
     mutable size_t search_min_leaves_visited_;
     mutable size_t search_max_leaves_visited_;
     mutable size_t search_leaves_visited_;
+
     mutable size_t bins_duration_;
     mutable size_t bins_par_duration_;
     mutable size_t bins_seq_duration_;
     mutable size_t bins_sync_duration_;
+    mutable size_t partitioning_par_duration_;
+    mutable size_t partitioning_seq_duration_;
+    mutable size_t partitioning_misc_duration_;
+    mutable size_t partitioning_duration_;
 };
 
 }  // namespace raytracer
