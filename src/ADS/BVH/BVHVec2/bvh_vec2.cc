@@ -27,6 +27,7 @@ void BvhVec2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
     bins_duration_ = 0;
     bins_seq_duration_ = 0;
     bins_sync_duration_ = 0;
+    partitioning_duration_ = 0;
 
     // Clear nodes_ and tri_idxs
     size_t n = triangles_.size();
@@ -98,6 +99,7 @@ void BvhVec2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
     std::cout << "  Bins time: " << bins_duration_ / 1000000.0 << " ms" << std::endl;
     std::cout << "    seq time: " << bins_seq_duration_ / 1000000.0 << " ms" << std::endl;
     std::cout << "    sync time: " << bins_sync_duration_ / 1000000.0 << " ms" << std::endl;
+    std::cout << "  Partitioning time: " << partitioning_duration_ / 1'000'000.0 << " ms" << std::endl;
     std::cout << "Vectorized2 BVH building time: " << build_t.elapsed_ms() << " ms" << std::endl;
 }
 
@@ -302,6 +304,7 @@ void BvhVec2::subdivide(size_t node_idx, int depth, AABB cb, const std::vector<P
     float split_cost = find_best_split(node, axis, split_pos, cb, TB_L, TB_R, tcs, tbs);
 
     // Triangle partitioning
+    Timer t_partitioning;
     int i = node.t_begin;
     int j = node.t_begin + node.t_count - 1;
     while (i <= j) {
@@ -353,6 +356,8 @@ void BvhVec2::subdivide(size_t node_idx, int depth, AABB cb, const std::vector<P
     for (size_t i = t_start_R; i < t_end_R; i++) {
         CB_R.expand(tcs[tri_idxs_[i]]);
     }
+
+    partitioning_duration_ += t_partitioning.elapsed_ns();
 
     // Subdivide recursively
     subdivide(left_child_idx, depth + 1, CB_L, tcs, tbs);
