@@ -1,5 +1,7 @@
 #include "src/ADS/BVH/BVHPar2V/bvh_par2v.h"
 
+#include <omp.h>
+
 #include <algorithm>
 #include <chrono>
 #include <iostream>
@@ -25,8 +27,6 @@ void BvhPar2V::Build(const std::vector<std::shared_ptr<const Triangle>>& triangl
     std::clog << "Building parallel2v BVH..." << std::endl;
     Timer build_t;
     bins_duration_ = 0;
-    bins_seq_duration_ = 0;
-    bins_sync_duration_ = 0;
     partitioning_duration_ = 0;
 
     // Clear nodes_ and tri_idxs
@@ -44,39 +44,56 @@ void BvhPar2V::Build(const std::vector<std::shared_ptr<const Triangle>>& triangl
     __m128 vb_max = _mm_set1_ps(-infinity);
     __m128 cb_min = _mm_set1_ps(infinity);
     __m128 cb_max = _mm_set1_ps(-infinity);
+#pragma omp parallel
+    {
+        __m128 local_vb_min = _mm_set1_ps(infinity);
+        __m128 local_vb_max = _mm_set1_ps(-infinity);
+        __m128 local_cb_min = _mm_set1_ps(infinity);
+        __m128 local_cb_max = _mm_set1_ps(-infinity);
+        alignas(16) float f4[4];
+
+#pragma omp for nowait
+        for (size_t i = 0; i < n; i++) {
+            const auto& t = triangles_[i];
+            /*
+                3x load - triangles vertices
+                2x min + 2x max - triangles aabbs
+                min + max - grow voxel aabb
+                add + mul - triangles centroids
+                min + max - grow centroid aabb
+                3x write - trinagles aabbs and centroids
+            */
+            __m128 v0 = _mm_setr_ps(t->vertices[0].pos.x, t->vertices[0].pos.y, t->vertices[0].pos.z, 0.0f);
+            __m128 v1 = _mm_setr_ps(t->vertices[1].pos.x, t->vertices[1].pos.y, t->vertices[1].pos.z, 0.0f);
+            __m128 v2 = _mm_setr_ps(t->vertices[2].pos.x, t->vertices[2].pos.y, t->vertices[2].pos.z, 0.0f);
+
+            __m128 tbb_min = _mm_min_ps(_mm_min_ps(v0, v1), v2);
+            __m128 tbb_max = _mm_max_ps(_mm_max_ps(v0, v1), v2);
+
+            __m128 tc = _mm_mul_ps(_mm_add_ps(_mm_add_ps(v0, v1), v2), third);
+
+            local_vb_min = _mm_min_ps(local_vb_min, tbb_min);
+            local_vb_max = _mm_max_ps(local_vb_max, tbb_max);
+            local_cb_min = _mm_min_ps(local_cb_min, tc);
+            local_cb_max = _mm_max_ps(local_cb_max, tc);
+
+            tbs[i].min = tbb_min;
+            tbs[i].max = tbb_max;
+
+            _mm_store_ps(f4, tc);
+            tcs[i] = Point3(f4[0], f4[1], f4[2]);
+        }
+
+#pragma omp critical
+        {
+            vb_min = _mm_min_ps(vb_min, local_vb_min);
+            vb_max = _mm_max_ps(vb_max, local_vb_max);
+            cb_min = _mm_min_ps(cb_min, local_cb_min);
+            cb_max = _mm_max_ps(cb_max, local_cb_max);
+        }
+    }
     alignas(16) float f4_dto_1[4];
     alignas(16) float f4_dto_2[4];
-    for (size_t i = 0; i < n; i++) {
-        const auto& t = triangles_[i];
-        /*
-            3x load - triangles vertices
-            2x min + 2x max - triangles aabbs
-            min + max - grow voxel aabb
-            add + mul - triangles centroids
-            min + max - grow centroid aabb
-            3x write - trinagles aabbs and centroids
-        */
-        __m128 v0 = _mm_setr_ps(t->vertices[0].pos.x, t->vertices[0].pos.y, t->vertices[0].pos.z, 0.0f);
-        __m128 v1 = _mm_setr_ps(t->vertices[1].pos.x, t->vertices[1].pos.y, t->vertices[1].pos.z, 0.0f);
-        __m128 v2 = _mm_setr_ps(t->vertices[2].pos.x, t->vertices[2].pos.y, t->vertices[2].pos.z, 0.0f);
-
-        __m128 tbb_min = _mm_min_ps(_mm_min_ps(v0, v1), v2);
-        __m128 tbb_max = _mm_max_ps(_mm_max_ps(v0, v1), v2);
-
-        __m128 tc = _mm_mul_ps(_mm_add_ps(_mm_add_ps(v0, v1), v2), third);
-
-        vb_min = _mm_min_ps(vb_min, tbb_min);
-        vb_max = _mm_max_ps(vb_max, tbb_max);
-
-        cb_min = _mm_min_ps(cb_min, tc);
-        cb_max = _mm_max_ps(cb_max, tc);
-
-        tbs[i].min = tbb_min;
-        tbs[i].max = tbb_max;
-
-        _mm_store_ps(f4_dto_1, tc);
-        tcs[i] = Point3(f4_dto_1[0], f4_dto_1[1], f4_dto_1[2]);
-    }
     _mm_store_ps(f4_dto_1, vb_min);
     _mm_store_ps(f4_dto_2, vb_max);
     AABB vb({f4_dto_1[0], f4_dto_1[1], f4_dto_1[2]}, {f4_dto_2[0], f4_dto_2[1], f4_dto_2[2]});
@@ -94,11 +111,28 @@ void BvhPar2V::Build(const std::vector<std::shared_ptr<const Triangle>>& triangl
     root.t_count = n;
     next_bvh_node_idx_ = 1;
 
+    jobs_.clear();
     subdivide(0, 0, cb, tcs, tbs);
 
+    std::sort(jobs_.begin(), jobs_.end(),
+              [&](const Job& a, const Job& b) { return nodes_[a.node_idx].t_count > nodes_[b.node_idx].t_count; });
+
+            std::cout << "Jobs count: " << jobs_.size() << std::endl;
+            for (size_t i = 0; i < std::min<size_t>(5, jobs_.size()); ++i) {
+                const auto& job = jobs_[i];
+                std::cout << "  Job " << i << ": node_idx=" << job.node_idx
+                          << ", depth=" << job.depth
+                          << ", cb.min=(" << job.cb.min.x << ", " << job.cb.min.y << ", " << job.cb.min.z << ")"
+                          << ", cb.max=(" << job.cb.max.x << ", " << job.cb.max.y << ", " << job.cb.max.z << ")"
+                          << std::endl;
+            }
+
+#pragma omp parallel for schedule(dynamic)
+    for (size_t i = 0; i < jobs_.size(); ++i) {
+        subdivide(jobs_[i].node_idx, jobs_[i].depth, jobs_[i].cb, tcs, tbs);
+    }
+
     std::cout << "  Bins time: " << bins_duration_ / 1000000.0 << " ms" << std::endl;
-    std::cout << "    seq time: " << bins_seq_duration_ / 1000000.0 << " ms" << std::endl;
-    std::cout << "    sync time: " << bins_sync_duration_ / 1000000.0 << " ms" << std::endl;
     std::cout << "  Partitioning time: " << partitioning_duration_ / 1'000'000.0 << " ms" << std::endl;
     std::cout << "Parallel2v BVH building time: " << build_t.elapsed_ms() << " ms" << std::endl;
 }
@@ -219,20 +253,51 @@ float BvhPar2V::find_best_split(BvhNode& node, int& axis, float& split_pos, cons
     std::vector<__m128> bbs_min(bin_count_, inf4);
     std::vector<__m128> bbs_max(bin_count_, neg_inf4);
     std::vector<size_t> ns(bin_count_, 0);
-
     float k_0 = cb.min[axis];
     float k_1 = bin_count_ * (1 - 1e-3) /
                 cb.size[axis];  // Possible problem with bin_idx being K (bin_count) - epsilon was too big
-    for (size_t t = node.t_begin; t < node.t_begin + node.t_count; t++) {
-        size_t t_idx = tri_idxs_[t];
-        size_t bin_idx = std::min(bin_count_ - 1, static_cast<int>(k_1 * (tcs[t_idx][axis] - k_0)));
 
-        bbs_min[bin_idx] = _mm_min_ps(bbs_min[bin_idx], tbs[t_idx].min);
-        bbs_max[bin_idx] = _mm_max_ps(bbs_max[bin_idx], tbs[t_idx].max);
-        ns[bin_idx]++;
+    if (node.t_count > horizontal_threshold_) {
+        int t_cnt = omp_get_max_threads();
+        std::vector<std::vector<__m128>> all_bbs_min(t_cnt, std::vector<__m128>(bin_count_, inf4));
+        std::vector<std::vector<__m128>> all_bbs_max(t_cnt, std::vector<__m128>(bin_count_, neg_inf4));
+        std::vector<std::vector<size_t>> all_ns(t_cnt, std::vector<size_t>(bin_count_, 0));
+
+#pragma omp parallel num_threads(t_cnt)
+        {
+            int t_id = omp_get_thread_num();
+            auto& local_bbs_min = all_bbs_min[t_id];
+            auto& local_bbs_max = all_bbs_max[t_id];
+            auto& local_ns = all_ns[t_id];
+
+#pragma omp for nowait
+            for (size_t t = node.t_begin; t < node.t_begin + node.t_count; t++) {
+                size_t t_idx = tri_idxs_[t];
+                size_t bin_idx = std::min(bin_count_ - 1, static_cast<int>(k_1 * (tcs[t_idx][axis] - k_0)));
+
+                local_bbs_min[bin_idx] = _mm_min_ps(local_bbs_min[bin_idx], tbs[t_idx].min);
+                local_bbs_max[bin_idx] = _mm_max_ps(local_bbs_max[bin_idx], tbs[t_idx].max);
+                local_ns[bin_idx]++;
+            }
+        }
+        for (int t_id = 0; t_id < t_cnt; t_id++) {
+            for (int b = 0; b < bin_count_; b++) {
+                bbs_min[b] = _mm_min_ps(bbs_min[b], all_bbs_min[t_id][b]);
+                bbs_max[b] = _mm_max_ps(bbs_max[b], all_bbs_max[t_id][b]);
+                ns[b] += all_ns[t_id][b];
+            }
+        }
+    } else {
+        for (size_t t = node.t_begin; t < node.t_begin + node.t_count; t++) {
+            size_t t_idx = tri_idxs_[t];
+            size_t bin_idx = std::min(bin_count_ - 1, static_cast<int>(k_1 * (tcs[t_idx][axis] - k_0)));
+
+            bbs_min[bin_idx] = _mm_min_ps(bbs_min[bin_idx], tbs[t_idx].min);
+            bbs_max[bin_idx] = _mm_max_ps(bbs_max[bin_idx], tbs[t_idx].max);
+            ns[bin_idx]++;
+        }
     }
-    bins_seq_duration_ += t_bins.elapsed_ns();
-    Timer t_bins_sync;
+
     alignas(16) float f4_dto_1[4];
     alignas(16) float f4_dto_2[4];
     for (int b = 0; b < bin_count_; b++) {
@@ -240,8 +305,7 @@ float BvhPar2V::find_best_split(BvhNode& node, int& axis, float& split_pos, cons
         _mm_store_ps(f4_dto_2, bbs_max[b]);
         bbs[b] = {{f4_dto_1[0], f4_dto_1[1], f4_dto_1[2]}, {f4_dto_2[0], f4_dto_2[1], f4_dto_2[2]}};
     }
-    bins_sync_duration_ += t_bins_sync.elapsed_ns();
-    bins_duration_ += t_bins.elapsed_ns();
+    bins_duration_.fetch_add(t_bins.elapsed_ns());
 
     // Prefix sum calculation left->right
     float best_split_cost = infinity;
@@ -326,13 +390,14 @@ void BvhPar2V::subdivide(size_t node_idx, int depth, AABB cb, const std::vector<
     }
 
     // Create child nodes
-    size_t left_child_idx = next_bvh_node_idx_++;
+    size_t left_child_idx = next_bvh_node_idx_.fetch_add(2);
+    size_t right_child_idx = left_child_idx + 1;
+
     nodes_[left_child_idx].t_begin = node.t_begin;
     nodes_[left_child_idx].t_count = N_L;
     nodes_[left_child_idx].aabb_min = TB_L.min;
     nodes_[left_child_idx].aabb_max = TB_L.max;
 
-    size_t right_child_idx = next_bvh_node_idx_++;
     nodes_[right_child_idx].t_begin = node.t_begin + N_L;
     nodes_[right_child_idx].t_count = N_R;
     nodes_[right_child_idx].aabb_min = TB_R.min;
@@ -357,11 +422,25 @@ void BvhPar2V::subdivide(size_t node_idx, int depth, AABB cb, const std::vector<
         CB_R.expand(tcs[tri_idxs_[i]]);
     }
 
-    partitioning_duration_ += t_partitioning.elapsed_ns();
+    partitioning_duration_.fetch_add(t_partitioning.elapsed_ns());
 
     // Subdivide recursively
-    subdivide(left_child_idx, depth + 1, CB_L, tcs, tbs);
-    subdivide(right_child_idx, depth + 1, CB_R, tcs, tbs);
+    if (!omp_in_parallel()) {
+        if (N_L <= static_cast<size_t>(horizontal_threshold_)) {
+            jobs_.push_back({left_child_idx, depth + 1, CB_L});
+        } else {
+            subdivide(left_child_idx, depth + 1, CB_L, tcs, tbs);
+        }
+
+        if (N_R <= static_cast<size_t>(horizontal_threshold_)) {
+            jobs_.push_back({right_child_idx, depth + 1, CB_R});
+        } else {
+            subdivide(right_child_idx, depth + 1, CB_R, tcs, tbs);
+        }
+    } else {
+        subdivide(left_child_idx, depth + 1, CB_L, tcs, tbs);
+        subdivide(right_child_idx, depth + 1, CB_R, tcs, tbs);
+    }
 }
 
 BvhPar2V::BvhStats BvhPar2V::calculate_stats() const {
@@ -454,6 +533,7 @@ void BvhPar2V::config_setup(const nlohmann::json& config) {
     max_triangles_per_BB_ = config.at("max_triangles_per_BB");
     max_depth_ = config.at("max_depth");
     bin_count_ = config.at("bin_count");
+    horizontal_threshold_ = config.at("horizontal_threshold");
 
     std::clog << "\rParallel2v BVH configured     " << std::endl;
 }

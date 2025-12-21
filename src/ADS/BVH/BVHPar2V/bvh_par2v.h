@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <memory>
 
 #include "src/ADS/ads.h"
@@ -69,6 +70,12 @@ class BvhPar2V : public Ads {
         __m128 max;
     };
 
+    struct Job {
+        size_t node_idx;
+        int depth;
+        AABB cb;
+    };
+
     // Helper methods
     float find_best_split(BvhNode& node, int& axis, float& split_pos, const AABB& cb, AABB& TB_L, AABB& TB_R,
                           const std::vector<Point3>& tcs, const std::vector<vAABB>& tbs);
@@ -80,12 +87,14 @@ class BvhPar2V : public Ads {
 
     std::vector<BvhNode> nodes_;  // root node at idx 0, child nodes are parent node_idx*2+1 and node_idx*2+2
     std::vector<uint> tri_idxs_;
-    size_t next_bvh_node_idx_;
+    std::atomic<size_t> next_bvh_node_idx_;
+    std::vector<Job> jobs_;
 
     // Config variables
     size_t max_triangles_per_BB_;
     int max_depth_;
     int bin_count_;
+    int horizontal_threshold_;
 
     // Statistics variables
     mutable size_t search_count_;
@@ -102,10 +111,8 @@ class BvhPar2V : public Ads {
     mutable size_t search_max_leaves_visited_;
     mutable size_t search_leaves_visited_;
 
-    mutable size_t bins_duration_;
-    mutable size_t bins_seq_duration_;
-    mutable size_t bins_sync_duration_;
-    mutable size_t partitioning_duration_;
+    mutable std::atomic<size_t> bins_duration_;
+    mutable std::atomic<size_t> partitioning_duration_;
 };
 
 }  // namespace raytracer
