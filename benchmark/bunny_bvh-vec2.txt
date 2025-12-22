@@ -1,0 +1,48 @@
+  Init time: 1.53962 ms
+  Bins time: 8.24206 ms
+    seq time: 5.11013 ms
+    sync time: 1.52886 ms
+  Partitioning time: 7.74532 ms
+Vectorized2 BVH building time: 32.5712 ms
+BVH Build stats: 
+  Nodes count: 62995
+  Leaf count: 31498
+  Leaf depth:
+   - Min depth: 3
+   - Max depth: 23
+   - Avg depth: 17.4632
+  Leaf tris:
+   - Min: 1
+   - Max: 3
+   - Avg: 2.20531
+
+BVH Search stats:
+ - Tatal calls: 102903
+  Nodes visited (ray-aabb tests):
+   - Min: 1
+   - Max: 207
+   - Avg: 23.7562
+   - Total: 2444586
+  Leaves visited:
+   - Min: 0
+   - Max: 35
+   - Avg: 4.69497
+   - Total: 483127
+  Time:
+   - Min: 0.05 µs
+   - Max: 18.084 µs
+   - Avg: 0.386444 µs
+   - Total time: 0.0397662 s
+  Tris returned (ray-tri tests):
+   - Min: 0
+   - Max: 88
+   - Avg: 8.13104
+   - Total tris returned: 836708
+
+Ray-triangle collisions:
+  - Avg count per ray: 671.884
+  - Avg duration per ray: 6.7407 µs
+  - Total count: 688009
+  - Total duration: 0.00690247 s
+Rendering time: 0.094 s
+

@@ -1,0 +1,8 @@
+Vectorized BVH building time: 1817.1 ms
+  Init time (precalculate aabbs and centroids): 301.126 ms
+  BVH build loop time: 1515.97 ms
+    Calculate bin ids time: 123.75 ms
+    Calculate best split and bins time: 824.495 ms
+    Rearange triangles time: 153.719 ms
+    Calculate centroids time: 232.989 ms
+    Loop & structure node creation overhead: 181.014 ms

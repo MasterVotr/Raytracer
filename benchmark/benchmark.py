@@ -8,8 +8,8 @@ import os
 import time
 
 # --- Configuration ---
-EXECUTABLE = "./raytracer.out" # Ensure this matches your makefile output
-CONFIG_FILE = "config.json"
+EXECUTABLE = "../raytracer.out" # Ensure this matches your makefile output
+CONFIG_FILE = "../config.json"
 RESULTS_FILE = "benchmark_results.csv"
 ITERATIONS = 5
 
