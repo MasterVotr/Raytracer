@@ -35,17 +35,6 @@ void BvhPar2::Build(const std::vector<std::shared_ptr<const Triangle>>& triangle
     partitioning_misc_duration_ = 0;
     partitioning_duration_ = 0;
 
-    int max_threads = omp_get_max_threads();
-    int num_threads = omp_get_num_threads();
-    char* omp_env = std::getenv("OMP_NUM_THREADS");
-    std::cout << "Max threads (omp_get_max_threads): " << max_threads << std::endl;
-    std::cout << "Current threads (omp_get_num_threads): " << num_threads << std::endl;
-    if (omp_env) {
-        std::cout << "OMP_NUM_THREADS: " << omp_env << std::endl;
-    } else {
-        std::cout << "OMP_NUM_THREADS not set." << std::endl;
-    }
-
     // Clear nodes_ and tri_idxs
     size_t n = triangles_.size();
     nodes_.resize(2 * n - 1);
@@ -376,7 +365,7 @@ void BvhPar2::subdivide(size_t node_idx, int depth, AABB cb, const std::vector<P
     int axis;
     float split_pos;
     AABB TB_L, TB_R;
-    float split_cost = find_best_split(node, axis, split_pos, cb, TB_L, TB_R, tcs, tbs);
+    find_best_split(node, axis, split_pos, cb, TB_L, TB_R, tcs, tbs);
 
     // Triangle partitioning
     Timer t_partitioning;

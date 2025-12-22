@@ -301,7 +301,7 @@ void BvhVec2::subdivide(size_t node_idx, int depth, AABB cb, const std::vector<P
     int axis;
     float split_pos;
     AABB TB_L, TB_R;
-    float split_cost = find_best_split(node, axis, split_pos, cb, TB_L, TB_R, tcs, tbs);
+    find_best_split(node, axis, split_pos, cb, TB_L, TB_R, tcs, tbs);
 
     // Triangle partitioning
     Timer t_partitioning;

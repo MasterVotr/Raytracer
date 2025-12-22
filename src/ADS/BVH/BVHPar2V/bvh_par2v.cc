@@ -117,15 +117,7 @@ void BvhPar2V::Build(const std::vector<std::shared_ptr<const Triangle>>& triangl
     std::sort(jobs_.begin(), jobs_.end(),
               [&](const Job& a, const Job& b) { return nodes_[a.node_idx].t_count > nodes_[b.node_idx].t_count; });
 
-            std::cout << "Jobs count: " << jobs_.size() << std::endl;
-            for (size_t i = 0; i < std::min<size_t>(5, jobs_.size()); ++i) {
-                const auto& job = jobs_[i];
-                std::cout << "  Job " << i << ": node_idx=" << job.node_idx
-                          << ", depth=" << job.depth
-                          << ", cb.min=(" << job.cb.min.x << ", " << job.cb.min.y << ", " << job.cb.min.z << ")"
-                          << ", cb.max=(" << job.cb.max.x << ", " << job.cb.max.y << ", " << job.cb.max.z << ")"
-                          << std::endl;
-            }
+    std::cout << "Jobs count: " << jobs_.size() << std::endl;
 
 #pragma omp parallel for schedule(dynamic)
     for (size_t i = 0; i < jobs_.size(); ++i) {
@@ -365,7 +357,7 @@ void BvhPar2V::subdivide(size_t node_idx, int depth, AABB cb, const std::vector<
     int axis;
     float split_pos;
     AABB TB_L, TB_R;
-    float split_cost = find_best_split(node, axis, split_pos, cb, TB_L, TB_R, tcs, tbs);
+    find_best_split(node, axis, split_pos, cb, TB_L, TB_R, tcs, tbs);
 
     // Triangle partitioning
     Timer t_partitioning;
