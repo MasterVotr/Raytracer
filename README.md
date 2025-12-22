@@ -19,6 +19,8 @@ Raytracer project from the subjects NI-PG1, NI-GPU and NI-MCC at CTU Prague 2024
   - [Possible extensions](#possible-extensions)
     - [New ADS](#new-ads)
     - [ADS Paralelization](#ads-paralelization)
+    - [Better rendering](#better-rendering)
+    - [Raytracing parallelization](#raytracing-parallelization)
 
 ## About
 
@@ -69,7 +71,11 @@ The full report in Czech can be found [here](report/report.pdf).
 - Basic Octree implementation with configurable depth of the tree and triangle count per node.
 - Parametric search Octree implementation. I implemented the algorithm from the research paper **An Efficient Parametric Algorithm for Octree Traversal** by J. Revelles, C. Urena, and M. Lastra.
     - Unfortunately, I wasn't able to make it work completely, but the implementation is still included.
-- Naive BVH implementation is on this branch
+- Bounding Volume Hierarchy (BVH) implementations:
+    - Naive BVH (`bvh_naive`)
+    - Sequential BVH (`bvh_seq`, `bvh_seq2`)
+    - Vectorized BVH (`bvh_vec`, `bvh_vec2`)
+    - Parallel BVH (`bvh_par`, `bvh_par2`, `bvh_par2v`)
 
 ### Paralelization on GPU
 - I also implemented the Raytracer on the GPU using CUDA.
@@ -119,7 +125,7 @@ The full report in Czech can be found [here](report/report.pdf).
 
 ### Linux
 1. Put your scenes in `.obj` and `.mtl` format in the `res/` directory.
-2. Create your `config.json` with your scene configuration.
+2. Create your `config.json` with your scene configuration (you can copy from `default_config.json`).
 3. Run the raytracer with a sample config:
     ```bash
     ./raytracer.out config.json
@@ -143,6 +149,7 @@ The full report in Czech can be found [here](report/report.pdf).
 ![box_area_lights](/readme_source/05_render_area_lights.png)
 ![box_reflection_refraction](/readme_source/07_render_reflection_refraction.png)
 ![sphere_reflection_refraction_walls](readme_source/07_sphere_render_reflection_refraction_walls.png)
+![bunny_dragon_hairball_powerplant](readme_source/08_CombinedRenders.png)
 
 ## Possible extensions
 
@@ -158,3 +165,9 @@ The full report in Czech can be found [here](report/report.pdf).
 
 ### ADS Paralelization
 - The current paralization on GPU is only for the naive approach, it would speed up the rendering imensily if the ADS was also ported to the GPU
+
+### Better rendering
+- Currently the rendering is riddled with visual bugs that could be removed
+
+### Raytracing parallelization
+- Raytring is of category "embarasingly parallelizable", so that should not be hard to implement.
