@@ -44,7 +44,12 @@ CTU FIT, NI-MCC 2025/26}
 % CHAPTER 1: Problem Definition and Sequential Algorithm
 %================================================================================
 
-% TODO - rendere figures
+\begin{figure*}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{./images/CombinedRenders.png}
+    \caption{Rendered images of the test scenes: Bunny, Dragon, Hairball, and Powerplant, each enclosed in a CornellBox.}
+    \label{fig:combined_renders}
+\end{figure*}
 
 \section{Problem Definition and Sequential Solution}
 
@@ -94,7 +99,7 @@ struct AABB {
 
 \end{lstlisting}
 \subsection{Testing data}
-For testing data I have chosen three model scenes: Bunny, Dragon, Hairball and Powerplant, with approximately 70k, 870k, 2 880k and 12 701k triangles respectively. These scenes/models were chosen to test the implementations of varying sizes and shapes. All of the models and enclosed in a CornellBox. You can see the renders in figure TODO.
+For testing data I have chosen three model scenes: Bunny, Dragon, Hairball and Powerplant, with approximately 70k, 870k, 2 880k and 12 701k triangles respectively. These scenes/models were chosen to test the implementations of varying sizes and shapes. All of the models and enclosed in a CornellBox. You can see the renders in figure \ref{fig:combined_renders}.
 
 %================================================================================
 % CHAPTER 2: OpenMP, Vectorization, Optimization
@@ -148,7 +153,7 @@ The vectors always contain subsequent values of data. For example holding 8 posi
 
 The initial calculation of triangle bounds and centroids is now much faster, however the binning and findnig a best split calculations are basically on par with the sequential version. The centroid bounds recalculation si slower then the sequential version, so I have erased it from the implementation.
 
-You can see all the gathered data in the \ref{table_seq_vec} table. Moving forward to the paralelization using OpenMP and multiple threads, I have chosen to extend the \texttt{BvhVec2} version.
+You can see all the gathered data in the \ref{table:seq_vec} table. Moving forward to the paralelization using OpenMP and multiple threads, I have chosen to extend the \texttt{BvhVec2} version.
 
 \begin{table*}[htbp]
     \centering
@@ -170,17 +175,15 @@ You can see all the gathered data in the \ref{table_seq_vec} table. Moving forwa
         Hairball & BvhVec2 & 71.48  & 416.1  & 308.42 & 1395.56 \\
         \hline
     \end{tabular}
-    \label{table_seq_vec}
+    \label{table:seq_vec}
 \end{table*}
 
 \subsection{Parallelization}
 For parallelization, the OpenMP library was chosen. Due to the recursive nature of the BVH construction algorithm the task parallelizm paradime lends itself as the obvious choice. The problem is, that initially we have a lot less branches to parallelize and each processes a lot of triangles. To mitigate this problem I split the parallelization into a horizontal and vertical phase.
 
-\textbf{Parallelization Principle:}
-\begin{itemize}
-    \item  TODO
-\end{itemize}
+\paragraph{Horizontal paralelization} % TODO
 
+\paragraph{Vertical paralelization} % TODO
 
 %================================================================================
 % CHAPTER 3: Result and Conclusion
@@ -189,47 +192,23 @@ For parallelization, the OpenMP library was chosen. Due to the recursive nature 
 \section{Results}
 
 \subsection{Measured Values}
-Measurements were performed on a [INSERT CPU TYPE] processor on \texttt{Dragon.obj} and \texttt{Bunny.obj} scenes. Times are in milliseconds.
+Measurements were performed on a TODO processor with parameters:
+\begin{lstlisting}
+    TODO cluster parameters.
+\end{lstlisting}
 
 % Use data from benchmark_results.csv here
-\begin{table}[H]
-    \centering
-    \caption{Build time dependence on thread count (Scene: Dragon)}
-    \begin{tabular}{|c|c|c|c|}
-        \hline
-        \thead{Threads} & \thead{BvhSeq2 [ms]} & \thead{BvhPar2 [ms]} & \thead{Speedup} \\
-        \hline
-        1 & 1250 & 1260 & 0.99x \\
-        2 & 1250 & 650 & 1.92x \\
-        4 & 1250 & 340 & 3.67x \\
-        8 & 1250 & 180 & 6.94x \\
-        16 & 1250 & 110 & 11.36x \\
-        \hline
-    \end{tabular}
-\end{table}
-
-% A graph should be here (generated e.g. in Python or Excel and inserted as an image)
-% \begin{figure}[H]
-%     \centering
-%     \includegraphics[width=0.45\textwidth]{graph_speedup.png}
-%     \caption{Speedup graph for different implementations}
-% \end{figure}
-
+% TODO - table with results
+% TODO - graph with results
 
 \section{Conclusion}
 
-Within the semester project, the BVH tree construction was implemented and optimized.
-\begin{itemize}
-    \item \textbf{Sequential Version:} Implementation with Binning (\texttt{BvhSeq2}) is approx. 2x faster than the naive version.
-    \item \textbf{Parallel Version:} The \texttt{BvhPar2} version using OpenMP Tasks reached a speedup of up to \textbf{XX-times} compared to the sequential version when using YY threads on the test machine.
-\end{itemize}
-
-The most performant implementation proved to be \texttt{BvhPar2} (or \texttt{BvhPar2v}), which combines an efficient algorithm (Binning) with task-level parallelization.
+% TODO - Conclusion
 
 \section{Literature}
 \begin{enumerate}
     \item Ingo Wald: \textit{On fast Construction of SAH-based Bounding Volume Hierarchies}, 2007.
-    \item OpenMP 4.5 Documentation.
+    \item OpenMP 5.0 Documentation.
     \item C++20 Standard library documentation
     \item NI-MCC and NI-PG1 Lectures.
 \end{enumerate}
