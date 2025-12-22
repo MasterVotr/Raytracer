@@ -44,7 +44,7 @@ CTU FIT, NI-MCC 2025/26}
 % CHAPTER 1: Problem Definition and Sequential Algorithm
 %================================================================================
 
-\begin{figure*}[htbp]
+\begin{figure*}[hb]
     \centering
     \includegraphics[width=0.95\textwidth]{./images/CombinedRenders.png}
     \caption{Rendered images of the test scenes: Bunny, Dragon, Hairball, and Powerplant, each enclosed in a CornellBox.}
@@ -54,10 +54,10 @@ CTU FIT, NI-MCC 2025/26}
 \section{Problem Definition and Sequential Solution}
 
 \subsection{Problem Definition}
-This work focuses on the optimization and parallelization of the algorithm for constructing the BVH (Bounding Volume Hierarchy) acceleration data structure. This structure is crucial for the efficient execution of raytracing. The Raytracer was developed within the NI-PG1 course. The goal is to minimize the tree construction time (Build time) on multi-core x86 architecture processors using OpenMP and vectorization.
+This work focuses on the optimization and parallelization of the algorithm for constructing the BVH (Bounding Volume Hierarchy) acceleration data structure. This structure is crucial for the efficient execution of raytracing. The raytracer was developed within the NI-PG1 course. The goal is to minimize the tree construction time (build time) on multi-core x86 architecture processors using OpenMP and vectorization.
 
 \subsection{Sequential Algorithm and Implementation}
-The starting point is the sequential implementation of BVH. The project implements the \texttt{BvhNaive} variant and the more optimized \texttt{BvhSeq} / \texttt{BvhSeq2} variants (\texttt{BvhSeq} was found too complicated and slower and was rewritten into \texttt{BvhSeq2}).
+The starting point is the sequential implementation of BVH. The project implements the \texttt{BvhNaive} variant and the more optimized \texttt{BvhSeq} / \texttt{BvhSeq2} variants (\texttt{BvhSeq} was found to be too complicated and slower, so it was rewritten into \texttt{BvhSeq2}).
 
 The construction algorithm works using the \textit{Top-Down} method:
 \begin{enumerate}
@@ -69,13 +69,13 @@ The construction algorithm works using the \textit{Top-Down} method:
     \end{equation}
     \item If the split cost is lower than the leaf cost and the maximum BVH tree parameters are not reached, the triangles are split, and the construction is recursively called for the left and right children.
 \end{enumerate}
-Where $C_t$ is traversal cost, $C_i$ is the cost of an intersection with a node and $S$ is the surface area of the node bounding box (combination of all triangle boudning boxes in one node).
+where $C_t$ is the traversal cost, $C_i$ is the cost of an intersection with a node and $S$ is the surface area of the node bounding box (combination of all triangle bounding boxes in one node).
 
 The \texttt{BvhSeq2} implementation uses the \textit{Binning} technique, which reduces the number of tested split planes, thereby speeding up SAH evaluation compared to the naive approach where all triangle edges are tested [1].
 
-The number of bins used is 16, Maximum depth of the BVH tree is 32 and the maximum numnber of triangles in a leaf is 4.
+The number of bins used is 16, Maximum depth of the BVH tree is 32 and the maximum number of triangles in a leaf is 4.
 
-\paragraph{BvhNode} structure was designed to be memory efficient (32 bytes) and aligned for better cache utilization. It is used by all the implementation versions. \texttt{Vec3} is a custom structure of 3 single precision floating point numbers used for calculations. In practice \texttt{\detokenize{size_t}} is used instead of \texttt{int}, that could be improved to truly fit inside 32 bytes of memory.
+\paragraph{BvhNode} structure was designed to be memory efficient (32 bytes) and aligned for better cache utilization. It is used by all the implementation versions. \texttt{Vec3} is a custom structure of 3 single precision floating point numbers used for calculations. In practice, \texttt{\detokenize{size_t}} is used instead of \texttt{int}; this could be improved to truly fit inside 32 bytes of memory.
 
 \begin{lstlisting}
 struct BvhNode {
@@ -86,7 +86,7 @@ struct BvhNode {
 };
 \end{lstlisting}
 
-\paragraph{AABB} is a datastructure that holds the minimum and maximum 3D points of a bounding box. It also has a few helpful methods like \texttt{surface\_area()} and \texttt{expand()} used in binning and other calculations.
+\paragraph{AABB} is a data structure that holds the minimum and maximum 3D points of a bounding box. It also has a few helpful methods like \texttt{surface\_area()} and \texttt{expand()} used in binning and other calculations.
 
 \begin{lstlisting}
 struct AABB {
@@ -99,7 +99,7 @@ struct AABB {
 
 \end{lstlisting}
 \subsection{Testing data}
-For testing data I have chosen three model scenes: Bunny, Dragon, Hairball and Powerplant, with approximately 70k, 870k, 2 880k and 12 701k triangles respectively. These scenes/models were chosen to test the implementations of varying sizes and shapes. All of the models and enclosed in a CornellBox. You can see the renders in figure \ref{fig:combined_renders}.
+For testing data, I have chosen three model scenes: Bunny, Dragon, Hairball, and Powerplant, with approximately 70k, 870k, 2 880k and 12 701k triangles respectively. These scenes/models were chosen to test the implementations of varying sizes and shapes. All of the models are enclosed in a CornellBox. You can see the renders in Figure \ref{fig:combined_renders}.
 
 %================================================================================
 % CHAPTER 2: OpenMP, Vectorization, Optimization
@@ -111,13 +111,13 @@ This chapter describes the algorithm modifications for parallel processing on th
 
 \subsection{Compiler flags}
 
-As per usual the compiler is a lot smarter than I am when it comes to optimization, so the lowest hanging fruits were optimized by it. When creating \texttt{BvhVec} I used the compiler with flags \texttt{-ftree-vectorize -fopt-info-vec -fopt-info-vec-missed} to get hints of were to adjust my code and where to use SoA.
+As per usual, the compiler is a lot smarter than I am when it comes to optimization, so the lowest hanging fruits were optimized by it. When creating \texttt{BvhVec} I used the compiler with flags \texttt{-ftree-vectorize -fopt-info-vec -fopt-info-vec-missed} to get hints of where to adjust my code and where to use SoA.
 
 When I was developing \texttt{BvhVec2} the usage of these flags was minimal due to my choice to use vector in a different approach. This meant that the compiler might not have been able to optimize my code further in some parts.
 
-For the whole code base I used these compiler flags: \texttt{-O3 -ffast-math -funroll-loops}. Enabeling the agressive optimization decresed the build time significantly, without hindering the build quality (the result was the same BVH tree).
+For the whole code base I used these compiler flags: \texttt{-O3 -ffast-math -funroll-loops}. Enabling the aggressive optimization decreased the build time significantly, without hindering the build quality (the result was the same BVH tree).
 
-For SIMD instructions and other intrinsic families I used the \texttt{-march=native} compiler flag, so it could choose the vectorization family, that would fit the architecture the code was compiled on the best.
+For SIMD instructions and other intrinsic families I used the \texttt{-march=native} compiler flag, so it could choose the vectorization family that would fit the architecture the code was compiled on the best.
 
 \subsection{Additional Data Structures:}
 In this section I will describe the data structures used in the vectorized and parallel version.
@@ -130,7 +130,7 @@ struct vAABB {
 };
 \end{lstlisting}
 
-\paragraph{Job} is a helpfull datastructure to hold data needed for starting up a parallel task on a separate thread.
+\paragraph{Job} is a helpful data structure to hold data needed for starting up a parallel task on a separate thread.
 \begin{lstlisting}
 struct Job {
     size_t node_idx;
@@ -143,24 +143,24 @@ struct Job {
 
 As part of the optimization, the possibility of vectorization (AVX/SSE SIMD instructions) was explored in the \texttt{BvhVec} and \texttt{BvhVec2} implementations.
 
-\paragraph{BvhVec} was the first variant implemneted. It uses SIMD instructions from the AVX familily with 256-bit registers (holding f32x8). When implementing I first wanted to lean of the compiler to do the vectorization for me, but for any more sophisticated loops it was unable to identify the safety and I was forced to vectorize thses loop manully.
+\paragraph{BvhVec} was the first variant implemented. It uses SIMD instructions from the AVX family with 256-bit registers (holding f32x8). When implementing I first wanted to lean on the compiler to do the vectorization for me, but for any more sophisticated loops it was unable to identify the safety and I was forced to vectorize these loops manually.
 
-The structure of arrays (SoA) pattern was used to increase cache locality - reduce the amount of cache misses and increase the amount of continuous memory reading. This was to a great effect when it came to paralelizing the binning phase of the algorithm. However when it came to the initial triangle bounding box and centroid calculation the restructuralization of the data greatly overshadowed the cost reduction from vectorization, so much so, that it almost negated the performance gain in the binning phase.
+The structure of arrays (SoA) pattern was used to increase cache locality - reduce the amount of cache misses and increase the amount of continuous memory reading. This was to a great effect when it came to parallelizing the binning phase of the algorithm. However when it came to the initial triangle bounding box and centroid calculation the restructuring of the data greatly overshadowed the cost reduction from vectorization, so much so, that it almost negated the performance gain in the binning phase.
 
-The vectors always contain subsequent values of data. For example holding 8 position Xes of the min position of a bounding box. Resulting in 8 bounding boxes being loaded, calculated and stored at once.
+The vectors always contain subsequent values of data. For example holding 8 position X values of the min position of a bounding box. This results in 8 bounding boxes being loaded, calculated, and stored at once.
 
-\paragraph{BvhVec2} uses a different approach. The crucial difference is in the usage of 128-bit vector registers from the SIMD familily (holding f32x4). Instead of holding subsesquent values of data, the each vector holds one 3D point (x, y, z, 0), with the last element not being used. This changed the SoA to a diffent, more readable and easier to work with format. On the other hand it forced me to do all the vectorization manually, since this is not the "natural" way of vector usage.
+\paragraph{BvhVec2} uses a different approach. The crucial difference is in the usage of 128-bit vector registers from the SIMD family (holding f32x4). Instead of holding subsequent values of data, each vector holds one 3D point (x, y, z, 0), with the last element not being used. This changed the SoA to a different, more readable and easier to work with format. On the other hand it forced me to do all the vectorization manually, since this is not the "natural" way of vector usage.
 
-The initial calculation of triangle bounds and centroids is now much faster, however the binning and findnig a best split calculations are basically on par with the sequential version. The centroid bounds recalculation si slower then the sequential version, so I have erased it from the implementation.
+The initial calculation of triangle bounds and centroids is now much faster, however the binning and finding the best split calculations are basically on par with the sequential version. The centroid bounds recalculation is slower than the sequential version, so I have erased it from the implementation.
 
-You can see all the gathered data in the \ref{table:seq_vec} table. Moving forward to the paralelization using OpenMP and multiple threads, I have chosen to extend the \texttt{BvhVec2} version.
+You can see all the gathered data in Table \ref{tab:seq_vec}. Moving forward to the parallelization using OpenMP and multiple threads, I have chosen to extend the \texttt{BvhVec2} version.
 
-\begin{table*}[htbp]
+\begin{table*}[h]
     \centering
-    \caption{Build times (parts and total) for BvhSeq2, BvhVec and BvhVec2 for the Bunny, Dragon and Hairball scenes. The unaccounted for time is the overhead of other operations, that are the same for all the implementations}
+    \caption{Build times (parts and total) for BvhSeq2, BvhVec and BvhVec2 for the Bunny, Dragon and Hairball scenes. The unaccounted-for time is the overhead of other operations that are the same for all the implementations}
     \begin{tabular}{|c|c|c|c|c|c|}
         \hline
-        \thead{Scene} & \thead{BVH types} & \thead{Init [ms]} & \thead{Binning [ms]} & \thead{Paritioning [ms]} & \thead{Total time [ms]} \\
+        \thead{Scene} & \thead{BVH types} & \thead{Init [ms]} & \thead{Binning [ms]} & \thead{Partitioning [ms]} & \thead{Total time [ms]} \\
         \hline
         Bunny & BvhSeq2 & 1.93 & 7.39 & 7.8  & 31.8 \\
         Bunny & BvhVec  & 6.96 & 2.49 & 8.42 & 37.3 \\
@@ -175,42 +175,109 @@ You can see all the gathered data in the \ref{table:seq_vec} table. Moving forwa
         Hairball & BvhVec2 & 71.48  & 416.1  & 308.42 & 1395.56 \\
         \hline
     \end{tabular}
-    \label{table:seq_vec}
+    \label{tab:seq_vec}
 \end{table*}
 
 \subsection{Parallelization}
-For parallelization, the OpenMP library was chosen. Due to the recursive nature of the BVH construction algorithm the task parallelizm paradime lends itself as the obvious choice. The problem is, that initially we have a lot less branches to parallelize and each processes a lot of triangles. To mitigate this problem I split the parallelization into a horizontal and vertical phase.
+For parallelization, the OpenMP library was chosen. Due to the recursive nature of the BVH construction algorithm the task parallelism paradigm lends itself as the obvious choice. The problem is that initially we have a lot less branches to parallelize and each processes a lot of triangles. To mitigate this problem I split the parallelization into a horizontal and vertical phases.
 
-\paragraph{Horizontal paralelization} % TODO
+\paragraph{Horizontal parallelization} is used when we are still not deep enough in the BVH tree construction and the amount of parallel branches is small. But to make use of parallelism even at this stage we can use the fact that there are a huge number of triangles in the current nodes. We parallelize the initial computation of triangle bounds and centroid as well as the triangle binning phase. There is also an option to parallelize the partitioning of triangles into the two children. However I tried implementing this and due the complexity of that operation (count local bounds, prefix sum, moving, copy back and merge bounds) the overhead is larger than the benefits. This pure horizontal implementation (including the parallel partitioning) is implemented in the BvhPar2.
 
-\paragraph{Vertical paralelization} % TODO
+\paragraph{Vertical parallelization} is used in the BvhPar2V implementation. I have taken the horizontal implementation (without the inefficient parallel partitioning) and extended it with vertical parallelization. When the amount of triangles in a child node is below the horizontal threshold a \texttt{Job} object is created, that represents the whole subtree. When the main while loop finishes, all the jobs are executed in a dynamic parallel for loop. The jobs have different triangle counts and the last thread might get the largest job. To mitigate this disadvantage, I sort the jobs from largest to smallest triangle count.
+
+\begin{table*}[ht]
+    \centering
+    \caption{Comparison of BvhPar2 and BvhPar2V build times (ms) across thread counts. The threshold used is the one that achieved the global minimum build time for that Scene and BVH type. Values are formatted as: Time (Threshold). Tested thresholds: \{1k, 5k, 10k, 20k, 50k\}.}
+    \begin{tabular}{|c|c|c|c|c|c|c|}
+        \hline
+        \thead{Scene} & \thead{BVH} & \thead{8} & \thead{16} & \thead{32} & \thead{64} & \thead{128} \\
+        \hline
+        Bunny & Par2 & 43.46 (50k) & 40.38 (50k) & 39.59 (50k) & 40.72 (50k) & 41.85 (50k) \\
+        Bunny & Par2V & 16.99 (5k) & 14.59 (5k) & 13.84 (5k) & 16.06 (5k) & 22.43 (5k) \\
+        \hline
+        Dragon & Par2 & 644.86 (50k) & 582.49 (50k) & 514.29 (50k) & 500.47 (50k) & 468.93 (50k) \\
+        Dragon & Par2V & 197.66 (50k) & 160.41 (50k) & 144.70 (50k) & 149.85 (50k) & 150.72 (50k) \\
+        \hline
+        Hairball & Par2 & 2964.41 (50k) & 2050.84 (50k) & 1842.02 (50k) & 1675.72 (50k) & 1560.62 (50k) \\
+        Hairball & Par2V & 706.99 (50k) & 578.02 (50k) & 498.44 (50k) & 509.05 (50k) & 496.87 (50k) \\
+        \hline
+        Powerplant & Par2 & 13715.38 (50k) & 10532.69 (50k) & 8810.72 (50k) & 7349.96 (50k) & 6632.96 (50k) \\
+        Powerplant & Par2V & 2999.37 (50k) & 2544.23 (50k) & 2268.69 (50k) & 2306.17 (50k) & 2235.38 (50k) \\
+        \hline
+    \end{tabular}
+\label{tab:par_comparison}
+\end{table*}
 
 %================================================================================
 % CHAPTER 3: Result and Conclusion
 %================================================================================
 
 \section{Results}
+In this section I will describe the cluster where all the measurements were done. I will also present the results in Table \ref{tab:summary} and graph (both linear and logarithmic) Figure \ref{fig:combined_graphs}.
 
-\subsection{Measured Values}
-Measurements were performed on a TODO processor with parameters:
+\subsection{Computation Cluster}
+Measurements were performed on an AMD cluster with parameters:
 \begin{lstlisting}
-    TODO cluster parameters.
+AMD node with Ubuntu 22.04
+x86 AMD EPYC 7543P with 32 cores
+512 GB RAM
 \end{lstlisting}
 
-% Use data from benchmark_results.csv here
-% TODO - table with results
-% TODO - graph with results
+\subsection{Results interpretation}
+As you can see from Table \ref{tab:summary} the parallel implementation is the most efficient one, but that might not be as surprising. During my implementation I have discovered the fact that BVH construction is highly parallelizable, but sooner or later you will arrive at a memory bottleneck, that is not solvable just by using more threads or vectorization. Instead there is a fine art of compromise. Another remark I will make is that SoA is a useful pattern, but when data gets large, the transformation into an SoA might have too much of overhead memory allocation and computation and the benefits are diminished if not outright non-existent.
+
+\begin{table*}[h]
+    \centering
+    \caption{Build times for all BVH implementations. Parallel vertical versions show the best time across all configurations.}
+    \begin{tabular}{|c|c|c|}
+        \hline
+        \textbf{Scene} & \textbf{BVH types} & \textbf{Total time [ms]} \\
+        \hline
+        Bunny & BvhSeq2 & 32.07 \\
+        Bunny & BvhVec & 37.79 \\
+        Bunny & BvhVec2 & 33.01 \\
+        Bunny & BvhPar2 (Best) & 39.59 \\
+        Bunny & BvhPar2V (Best) & 13.84 \\
+        \hline
+        Dragon & BvhSeq2 & 411.02 \\
+        Dragon & BvhVec & 484.05 \\
+        Dragon & BvhVec2 & 417.26 \\
+        Dragon & BvhPar2 (Best) & 468.93 \\
+        Dragon & BvhPar2V (Best) & 144.70 \\
+        \hline
+        Hairball & BvhSeq2 & 1403.49 \\
+        Hairball & BvhVec & 1820.08 \\
+        Hairball & BvhVec2 & 1411.52 \\
+        Hairball & BvhPar2 (Best) & 1560.62 \\
+        Hairball & BvhPar2V (Best) & 496.87 \\
+        \hline
+        Powerplant & BvhSeq2 & 5918.26 \\
+        Powerplant & BvhVec & 8402.73 \\
+        Powerplant & BvhVec2 & 5883.75 \\
+        Powerplant & BvhPar2 (Best) & 6632.96 \\
+        Powerplant & BvhPar2V (Best) & 2235.38 \\
+        \hline
+    \end{tabular}
+    \label{tab:summary}
+\end{table*}
+
+\begin{figure*}[h]
+    \centering
+    \includegraphics[width=0.86\textwidth]{./images/CombinedGraphs.png}
+    \caption{Comparison of build times for all BVH implementations and scenes.}
+    \label{fig:combined_graphs}
+\end{figure*}
 
 \section{Conclusion}
 
-% TODO - Conclusion
+Overall I have enjoyed working on this semestral project a lot. It has given me the insight into acceleration data structures and their parallelization as I wanted. It has even pushed me toward exploring this area more and steered me towards choosing my diploma thesis in the same area - that is acceleration data structures for raytracing.
 
 \section{Literature}
 \begin{enumerate}
     \item Ingo Wald: \textit{On fast Construction of SAH-based Bounding Volume Hierarchies}, 2007.
     \item OpenMP 5.0 Documentation.
     \item C++20 Standard library documentation
-    \item NI-MCC and NI-PG1 Lectures.
+    \item NI-MCC lectures.
 \end{enumerate}
 
 \end{document}
