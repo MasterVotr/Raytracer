@@ -23,7 +23,8 @@
             "name": "bvh_vec",
             "max_triangles_per_BB": 4,
             "max_depth": 32,
-            "bin_count": 16
+            "bin_count": 16,
+            "horizontal_threshold": 32768
         }
     },
     "scene": {
@@ -45,8 +46,8 @@
                 -1.0
             ],
             "fov": 0.6,
-            "width": 512,
-            "height": 512,
+            "width": 32,
+            "height": 32,
             "samples_per_pixel": 1
         },
         "point_lights": []
