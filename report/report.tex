@@ -1,6 +1,6 @@
 \documentclass[10pt,a4paper,twocolumn]{article}
 
-\usepackage[czech]{babel}
+\usepackage[english]{babel}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{graphicx}
@@ -10,6 +10,10 @@
 \usepackage{caption}
 \usepackage{titlesec}
 \usepackage{geometry}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{stfloats}
+
 \geometry{margin=1.5cm}
 \usepackage{makecell}
 \renewcommand\theadalign{bc}
@@ -19,9 +23,17 @@
 \titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
 \titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
 
-\title{\textbf{Závěrečná zpráva - Raytracer s akcelerační strukturou}}
+% Setup for code listings (compiler output)
+\lstset{
+    basicstyle=\ttfamily\scriptsize,
+    breaklines=true,
+    frame=single,
+    columns=fullflexible
+}
+
+\title{\textbf{Semester Technical Report - Parallel Construction of BVH}}
 \author{Jakub Votrubec \\
-ČVUT FIT, NI-PG1 2024/25}
+CTU FIT, NI-MCC 2025/26}
 \date{}
 
 \begin{document}
@@ -29,245 +41,197 @@
 \maketitle
 
 %================================================================================
-
-\section{Úvod}
-Tento dokument popisuje závěrečný výstup, v podobě semestrální práce, z předmětu NI-PG1. Náplní semestrální práce bylo vytvoření vlastního raytracering renderu a implementace akcelerační datové struktury pro zrychlení traverzace scény. Cílem bylo prokázat schopnost optimalizovat výkon raytraceru pomocí vhodné datové struktury.
-Semestrální práce byla zpracována v jazyce C++, standard C++17, a využívá externí knihovny pouze pro načítání scén a konfigurace ve formátu \texttt{json}.
-
+% CHAPTER 1: Problem Definition and Sequential Algorithm
 %================================================================================
 
-\section{Struktura raytraceru}
+% TODO - rendere figures
 
-Implementoval jsem základní raytracer pro vykreslování scén složených z trojúhelníků. Raytracer má následující funkce, mezi kterými lze přepínat pomocí konfigurace:
+\section{Problem Definition and Sequential Solution}
 
+\subsection{Problem Definition}
+This work focuses on the optimization and parallelization of the algorithm for constructing the BVH (Bounding Volume Hierarchy) acceleration data structure. This structure is crucial for the efficient execution of raytracing. The Raytracer was developed within the NI-PG1 course. The goal is to minimize the tree construction time (Build time) on multi-core x86 architecture processors using OpenMP and vectorization.
+
+\subsection{Sequential Algorithm and Implementation}
+The starting point is the sequential implementation of BVH. The project implements the \texttt{BvhNaive} variant and the more optimized \texttt{BvhSeq} / \texttt{BvhSeq2} variants (\texttt{BvhSeq} was found too complicated and slower and was rewritten into \texttt{BvhSeq2}).
+
+The construction algorithm works using the \textit{Top-Down} method:
+\begin{enumerate}
+    \item Start with the root node containing all scene triangles.
+    \item For each node, find the best split plane.
+    \item The SAH (Surface Area Heuristic) is used to determine the split cost:
+    \begin{equation}
+        Cost = C_t + \frac{S_L}{S_{parent}} \cdot N_L \cdot C_i + \frac{S_R}{S_{parent}} \cdot N_R \cdot C_i
+    \end{equation}
+    \item If the split cost is lower than the leaf cost and the maximum BVH tree parameters are not reached, the triangles are split, and the construction is recursively called for the left and right children.
+\end{enumerate}
+Where $C_t$ is traversal cost, $C_i$ is the cost of an intersection with a node and $S$ is the surface area of the node bounding box (combination of all triangle boudning boxes in one node).
+
+The \texttt{BvhSeq2} implementation uses the \textit{Binning} technique, which reduces the number of tested split planes, thereby speeding up SAH evaluation compared to the naive approach where all triangle edges are tested [1].
+
+The number of bins used is 16, Maximum depth of the BVH tree is 32 and the maximum numnber of triangles in a leaf is 4.
+
+\paragraph{BvhNode} structure was designed to be memory efficient (32 bytes) and aligned for better cache utilization. It is used by all the implementation versions. \texttt{Vec3} is a custom structure of 3 single precision floating point numbers used for calculations. In practice \texttt{\detokenize{size_t}} is used instead of \texttt{int}, that could be improved to truly fit inside 32 bytes of memory.
+
+\begin{lstlisting}
+struct BvhNode {
+    Vec3 aabb_min;
+    Vec3 aabb_max;
+    int t_begin;  // or left child (right child is t_begin+1)
+    int t_count;
+};
+\end{lstlisting}
+
+\paragraph{AABB} is a datastructure that holds the minimum and maximum 3D points of a bounding box. It also has a few helpful methods like \texttt{surface\_area()} and \texttt{expand()} used in binning and other calculations.
+
+\begin{lstlisting}
+struct AABB {
+    Vec3 min;
+    Vec3 max;
+    float surface_area();
+    void expand(AABB other);
+    void expand(Vec point);
+};
+
+\end{lstlisting}
+\subsection{Testing data}
+For testing data I have chosen three model scenes: Bunny, Dragon, Hairball and Powerplant, with approximately 70k, 870k, 2 880k and 12 701k triangles respectively. These scenes/models were chosen to test the implementations of varying sizes and shapes. All of the models and enclosed in a CornellBox. You can see the renders in figure TODO.
+
+%================================================================================
+% CHAPTER 2: OpenMP, Vectorization, Optimization
+%================================================================================
+
+\section{Parallelization and Optimization (Vectorization and OpenMP)}
+
+This chapter describes the algorithm modifications for parallel processing on the CPU (implementations \texttt{BvhPar}, \texttt{BvhPar2}).
+
+\subsection{Compiler flags}
+
+As per usual the compiler is a lot smarter than I am when it comes to optimization, so the lowest hanging fruits were optimized by it. When creating \texttt{BvhVec} I used the compiler with flags \texttt{-ftree-vectorize -fopt-info-vec -fopt-info-vec-missed} to get hints of were to adjust my code and where to use SoA.
+
+When I was developing \texttt{BvhVec2} the usage of these flags was minimal due to my choice to use vector in a different approach. This meant that the compiler might not have been able to optimize my code further in some parts.
+
+For the whole code base I used these compiler flags: \texttt{-O3 -ffast-math -funroll-loops}. Enabeling the agressive optimization decresed the build time significantly, without hindering the build quality (the result was the same BVH tree).
+
+For SIMD instructions and other intrinsic families I used the \texttt{-march=native} compiler flag, so it could choose the vectorization family, that would fit the architecture the code was compiled on the best.
+
+\subsection{Additional Data Structures:}
+In this section I will describe the data structures used in the vectorized and parallel version.
+
+\paragraph{vAABB} is an alternative AABB structure, that is used for holding the minimum and maximum 3D points in SIMD 128-bit vectors.
+\begin{lstlisting}
+struct vAABB {
+    __m128 aabb_min;
+    __m128 aabb_max;
+};
+\end{lstlisting}
+
+\paragraph{Job} is a helpfull datastructure to hold data needed for starting up a parallel task on a separate thread.
+\begin{lstlisting}
+struct Job {
+    size_t node_idx;
+    int depth;
+    AABB cb;
+};
+\end{lstlisting}
+
+\subsection{Vectorization}
+
+As part of the optimization, the possibility of vectorization (AVX/SSE SIMD instructions) was explored in the \texttt{BvhVec} and \texttt{BvhVec2} implementations.
+
+\paragraph{BvhVec} was the first variant implemneted. It uses SIMD instructions from the AVX familily with 256-bit registers (holding f32x8). When implementing I first wanted to lean of the compiler to do the vectorization for me, but for any more sophisticated loops it was unable to identify the safety and I was forced to vectorize thses loop manully.
+
+The structure of arrays (SoA) pattern was used to increase cache locality - reduce the amount of cache misses and increase the amount of continuous memory reading. This was to a great effect when it came to paralelizing the binning phase of the algorithm. However when it came to the initial triangle bounding box and centroid calculation the restructuralization of the data greatly overshadowed the cost reduction from vectorization, so much so, that it almost negated the performance gain in the binning phase.
+
+The vectors always contain subsequent values of data. For example holding 8 position Xes of the min position of a bounding box. Resulting in 8 bounding boxes being loaded, calculated and stored at once.
+
+\paragraph{BvhVec2} uses a different approach. The crucial difference is in the usage of 128-bit vector registers from the SIMD familily (holding f32x4). Instead of holding subsesquent values of data, the each vector holds one 3D point (x, y, z, 0), with the last element not being used. This changed the SoA to a diffent, more readable and easier to work with format. On the other hand it forced me to do all the vectorization manually, since this is not the "natural" way of vector usage.
+
+The initial calculation of triangle bounds and centroids is now much faster, however the binning and findnig a best split calculations are basically on par with the sequential version. The centroid bounds recalculation si slower then the sequential version, so I have erased it from the implementation.
+
+You can see all the gathered data in the \ref{table_seq_vec} table. Moving forward to the paralelization using OpenMP and multiple threads, I have chosen to extend the \texttt{BvhVec2} version.
+
+\begin{table*}[htbp]
+    \centering
+    \caption{Build times (parts and total) for BvhSeq2, BvhVec and BvhVec2 for the Bunny, Dragon and Hairball scenes. The unaccounted for time is the overhead of other operations, that are the same for all the implementations}
+    \begin{tabular}{|c|c|c|c|c|c|}
+        \hline
+        \thead{Scene} & \thead{BVH types} & \thead{Init [ms]} & \thead{Binning [ms]} & \thead{Paritioning [ms]} & \thead{Total time [ms]} \\
+        \hline
+        Bunny & BvhSeq2 & 1.93 & 7.39 & 7.8  & 31.8 \\
+        Bunny & BvhVec  & 6.96 & 2.49 & 8.42 & 37.3 \\
+        Bunny & BvhVec2 & 1.54 & 8.24 & 7.75 & 32.57 \\
+        \hline
+        Dragon & BvhSeq2 & 26.82 & 101.94 & 97.69  & 408.43 \\
+        Dragon & BvhVec  & 91.34 & 32.05  & 106.44 & 487.05 \\
+        Dragon & BvhVec2 & 22.54 & 109.13 & 97.28  & 417.21 \\
+        \hline
+        Hairball & BvhSeq2 & 85.08  & 407.91 & 305.42 & 1396.2  \\
+        Hairball & BvhVec  & 301.13 & 123.75 & 386.7  & 1817.1  \\
+        Hairball & BvhVec2 & 71.48  & 416.1  & 308.42 & 1395.56 \\
+        \hline
+    \end{tabular}
+    \label{table_seq_vec}
+\end{table*}
+
+\subsection{Parallelization}
+For parallelization, the OpenMP library was chosen. Due to the recursive nature of the BVH construction algorithm the task parallelizm paradime lends itself as the obvious choice. The problem is, that initially we have a lot less branches to parallelize and each processes a lot of triangles. To mitigate this problem I split the parallelization into a horizontal and vertical phase.
+
+\textbf{Parallelization Principle:}
 \begin{itemize}
-    \item Stíny pomocí stínových paprsků.
-    \item Podpora plošného světla skrze náhodné vzorkování trojúhelníků.
-    \item Vykreslení scény s různými osvětlovacími modely (distance shading, čistě difuzní osvětlení, Phongův osvětlovací model, Blinn-Phongův osvětlovací model).
-    \item Vykreslení scény s různými stánovacími modely (flat shading, smooth shading - Phongův stínovací model).
-    \item Podpora odrazu a lomu světla.
-    \item Backface culling.
-    \item Vykreslení scény s více vzorky na pixel (fuzzysampling), viz \textit{Použité metody nad rámec cvičení}.
+    \item  TODO
 \end{itemize}
 
-Raytracer je navržen tak, aby byl modulární a snadno rozšiřitelný. Hlavní třída \texttt{Raytracer} obsahuje metody pro vykreslování a ukládání výsledného obrazu. Scéna je reprezentována jako seznam trojúhelníků, které jsou načteny z~\texttt{.obj} souboru.
-
-Raytracer načítá scénu pomocí knihovny \texttt{tinyobjloader} a používá knihovnu \texttt{nlohmann/json} pro načítání konfigurace. Scéna se vykreslí do formátu~\texttt{.ppm}.
-
-\subsection{Použité metody nad rámec cvičení}
-
-Při renderování scény jsem zjistil problém s velkým množstvím šumu ve výsledném obrazu. Rozhodl jsem se implementovat několikanásobné vzorkování. Metodu jsem nazval \textit{fuzzysampling}.
-
-\textit{Fuzzysampling} spočívá v tom, že pro každý pixel se vygeneruje několik paprsků, ale každý s lehce pozměněným směrem paprsku. Jejich výsledky se poté průměrují. Tím se dosáhne hladšího obrazu a sníží se šum. Zmeny směru paprsk jsou generovány náhodně v rámci pixelu, což umožňuje zachovat detaily a zároveň eliminovat šum.
 
 %================================================================================
+% CHAPTER 3: Result and Conclusion
+%================================================================================
 
-\section{Akcelerační datová struktura}
+\section{Results}
 
-Implemetoval jsem dvě varianty akcelerační datové struktury octree:
+\subsection{Measured Values}
+Measurements were performed on a [INSERT CPU TYPE] processor on \texttt{Dragon.obj} and \texttt{Bunny.obj} scenes. Times are in milliseconds.
+
+% Use data from benchmark_results.csv here
+\begin{table}[H]
+    \centering
+    \caption{Build time dependence on thread count (Scene: Dragon)}
+    \begin{tabular}{|c|c|c|c|}
+        \hline
+        \thead{Threads} & \thead{BvhSeq2 [ms]} & \thead{BvhPar2 [ms]} & \thead{Speedup} \\
+        \hline
+        1 & 1250 & 1260 & 0.99x \\
+        2 & 1250 & 650 & 1.92x \\
+        4 & 1250 & 340 & 3.67x \\
+        8 & 1250 & 180 & 6.94x \\
+        16 & 1250 & 110 & 11.36x \\
+        \hline
+    \end{tabular}
+\end{table}
+
+% A graph should be here (generated e.g. in Python or Excel and inserted as an image)
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=0.45\textwidth]{graph_speedup.png}
+%     \caption{Speedup graph for different implementations}
+% \end{figure}
+
+
+\section{Conclusion}
+
+Within the semester project, the BVH tree construction was implemented and optimized.
 \begin{itemize}
-    \item základní varianta octree,
-    \item parametrická varianta podle článku \textit{An Efficient Parametric Algorithm for Octree Traversal} od Revelles et al..
+    \item \textbf{Sequential Version:} Implementation with Binning (\texttt{BvhSeq2}) is approx. 2x faster than the naive version.
+    \item \textbf{Parallel Version:} The \texttt{BvhPar2} version using OpenMP Tasks reached a speedup of up to \textbf{XX-times} compared to the sequential version when using YY threads on the test machine.
 \end{itemize}
 
-\subsection{Stavba a traverzace}
+The most performant implementation proved to be \texttt{BvhPar2} (or \texttt{BvhPar2v}), which combines an efficient algorithm (Binning) with task-level parallelization.
 
-Octree je struktura, která dělí prostor na menší buňky, což umožňuje rychlejší vyhledávání kolizí mezi paprsky a trojúhelníky. Každý uzel octree obsahuje bounding box, který definuje prostor, který uzel pokrývá, a seznam trojúhelníků, které se v tomto prostoru nacházejí.
-
-\subsubsection{Základní octree}
-
-Základní octree je implementován jako rekurzivní struktura, která dělí prostor rekurzivně na osm dalších uzlů (oktetů), dokud není dosaženo maximální hloubky nebo počtu trojúhelníků v uzlu.
-
-Traverzace probíhá tak, že pro každý paprsek se nejprve zjistí, zda protíná bounding box aktuálního uzlu. Pokud ano, poračuje se dál na jeho oktety, pokud ne, traverzace končí. Je-li oktet již list stromu (neobsahuje žádné vlastní oktety), traverzace končí a jeho trojúhelníky jsou přidány k výsledku. Traverzace pokračuje rekurzivně, dokud se neprohledá celý strom. Prochází se vždy všechny oktety uzlu.
-
-\subsubsection{Parametrický octree}
-
-Parametrický octree je vylepšená verze, která využívá parametrickou traverzaci. Tato metoda umožňuje efektivnější prohledávání prostoru tím, že využívá parametrické rovnice pro určení průsečíků paprsku s hranicemi uzlů octree (tzv. "slab" metoda).
-
-Nejprve se vypočítájí průsečíky paprsku s~hranicemi uzlu, z~nich se určtí "čas", kdy paprsek vstoupí a~opustí daný uzel na jednotlivých osách. Pokud paprsek opustil uzel na nějaké ose dříve, nežli vstoupil na všech osách - minul bounding box uzlu a tato větev traverzace se ozavírá.
-
-Pokud paprsek vstoupil, tak na základě průsečíku vstupu se vypočítá první oktet, do kterého paprsek vstoupí. Ten se následně přidá do fronty pro další zpracování. Následně se postupně se projdou a přidají všechny oktety, do kterých paprsek vstoupí. Procházení všech dalších oktetů probíhá na základě konečného automatu, který určuje, do kterého oktetu paprsek vstoupí na základě jeho směru a aktuálního oktetu.
-
-Optimalizace oproti základnímu octree spočívá v~tom, že se neprocházejí všechny oktety, ale pouze ty, do kterých paprsek skutečně vstoupí. Zároveň výpočet velikostí oktetů je založen jen na půlení velikosti rodičovského uzlu, což umožňuje efektivní a~výpočetně nenáročné dělení prostoru.
-
-Parametrickou traverzaci se mi bohužel nepodařilo implementovat, vice viz \textit{Problémy při implementaci}.
-
-\subsection{Problémy při implementaci}
-
-Při implementaci stavby octree jsem narazil na problémy s~přesností výpočtů velikosti oktetů. Kvůli chybě u datových typů s plovoucí desteinou čárkou se ne vždy přiřadily všechny trojúhelníky rodičovského uzlu do jeho oktetů, což vedlo k~chybám při traverzaci. Tento problém jsem vyřešil nafouknutím bounding boxů o toleranci \textit{epsilon}.
-
-Bohužel se  mi nepodařilo správně implementovat a zprovoznit parametrický octree. Narazil na problémy při traverzaci. Traverzace nenalezne všechny trojúhelníky a scéna je poté vyrenderována s dírami, jak švýcarský sýr. Zkoušel jsem, jestli je problém opět v přesnosti výpočtů s čísly s plovoucí desetinnou čárkou, ale nepodařilo se mi ho vyřešit. Proto jsem se rozhodl parametrický octree nevyužít a~v~měření výkonu použít pouze základní octree.
-
-%================================================================================
-
-\section{Měření výkonu}
-
-\subsection{Nastavení měření}
-
-Pro měření výkonu byla použita scéna \texttt{CornellBox-Sphere.obj} s následující konfigurací:
-
-\begin{table}[H]
-    \centering
-    \caption{Použité nastavení rendereru}
-    \begin{tabular}{|l|l|}
-        \hline
-        \thead{Parametr} & \thead{Hodnota} \\
-        \hline
-        Výsledné rozlišení & $800 \times 800$ \\
-        \hline
-        Max. zanoření paprsku & 10 \\
-        \hline
-        \makecell{Vzorků plošného světla \\ na trojúhelník} & 50 \\
-        \hline
-        Osvětlovací model & Blinn-Phong \\
-        \hline
-        Stínovací model & Smooth \\
-        \hline
-        Backface culling & Ano \\
-        \hline
-        Fuzzysampling & Ne \\
-        \hline
-    \end{tabular}
-\end{table}
-
-\begin{table}[H]
-    \centering
-    \caption{Použité nastavení struktury octree}
-    \begin{tabular}{|l|c|}
-        \hline
-        \thead{Parametr} & \thead{Hodnota} \\
-        \hline
-        Max. počet trojúhelníků na uzel & 16 \\
-        \hline
-        Max. hloubka uzlů & 10 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-\subsection{Výsledky měření}
-
-Porovnání výkonu bez akcelerační struktury a s akcelerační strukturou octree:
-
-\begin{table}[H]
-    \centering
-    \caption{Porovnání výkonu raytraceru}
-    \begin{tabular}{|l|c|c|}
-        \hline
-        \thead{Metrika} & \thead{Bez ADS} & \thead{Octree} \\
-        \hline
-        Čas renderování [s] & 3h 24m 12.4s & 13m 53.7s \\
-        \hline
-        \makecell{Počet kolizí \\ paprsek-trojúhelník} & $2.46 \times 10^{11}$ & $2.81 \times 10^{9}$ \\
-        \hline
-        \makecell{Průměrný počet kolizí \\ na paprsek} & 383\,665 & 4\,395 \\
-        \hline
-        Čas výpočtu kolizí [s] & 8\,032.8 & 121.5 \\
-        \hline
-        \makecell{Průměrná doba výpočtu \\ kolizí na paprsek [ms]} & 12.55 & 0.19 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-\begin{table}[H]
-    \centering
-    \caption{Statistiky struktury octree}
-    \begin{tabular}{|l|c|}
-        \hline
-        \thead{Statistika} & \thead{Hodnota} \\
-        \hline
-        Počet uzlů & 1\,584 \\
-        \hline
-        Počet listů & 1\,300 \\
-        \hline
-        Průměrná hloubka listů & 5.22 \\
-        \hline
-        Max. trojúhelníků v listu & 34 \\
-        \hline
-        Průměr trojúhelníků v listu & 7.03 \\
-        \hline
-        Čas stavby octree [s] & 0.04 \\
-        \hline
-        Počet prohledaných uzlů & 1\,138\,825\,603 \\
-        \hline
-        Čas strávený traverzací & 4m 43.943s \\
-        \hline
-        \makecell{Průměrný počet trojúhelníků \\ vrácených z traverzace} & 33.7 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-%================================================================================
-
-\section{Ukázky výstupů}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.38\textwidth]{images/box_render_distance.png}
-    \caption{Ukázka vykreslení scény s distance shadingem.}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.38\textwidth]{images/box_render_diffusion.png}
-    \caption{Ukázka vykreslení scény s difúzním osvětlením.}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.38\textwidth]{images/box_render_blinn-phong_shadows.png}
-    \caption{Ukázka vykreslení scény s Blinn-Phong osvětlením a stíny.}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.38\textwidth]{images/box_render_area_lights.png}
-    \caption{Ukázka vykreslení scény s plošným světlem.}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.38\textwidth]{images/box_render_reflection_refraction.png}
-    \caption{Ukázka vykreslení scény s odrazem a lomem světla.}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.38\textwidth]{images/sphere_render_reflection_refraction_walls.png}
-    \caption{Ukázka vykreslení scény s odrazem a lomem světla na zrcadlových stěnách.}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.38\textwidth]{images/sphere_render_sampling_10.png}
-    \caption{Ukázka vykreslení scény s fuzzysamplingem (10~vzorků na pixel).}
-\end{figure}
-
-%================================================================================
-
-\section{Implementace}
-
-Veškerá implementace je dostupná na fakultním \href{https://gitlab.fit.cvut.cz/votruja6/pg1-raytracer#}{GitLabu} a mém \href{https://github.com/MasterVotr/PG1-raytracer}{GitHubu}.
-
-Více informací o kompilaci, konfiguraci a spuštění naleznete v~souboru README samotného repozitáře.
-
-%================================================================================
-
-\section{Závěr}
-
-Tato semestrální práce prokázala schopnost optimalizovat výkon raytraceru pomocí akcelerační datové struktury octree. Implementace základního octree vedla k~významnému zrychlení traverzace scény a~snížení počtu kolizí mezi paprsky a~trojúhelníky. Parametrickou variantu octree se mi bohužel nepodařilo implementovat, což je škoda, protože by mohla přinést další zlepšení výkonu.
-
-Další rozšíření raytraceru by mohlo zahrnovat implementaci dalších akceleračních struktur, jako jsou BVH (Bounding Volume Hierarchy) nebo kd-stromy, které by mohly dále zlepšit výkon při renderování složitějších scén.
-
-Rád bych také zkusil implementovat paralelní zpracování raytraceru, což by mohlo výrazně zrychlit renderování na moderních vícejádrových procesorech nebo GPU.
-
-\section{Použitá literatura}
-\begin{itemize}
-    \item Přednášky a materiály z předmětu NI-PG1.
-    \item \textit{An Efficient Parametric Algorithm for Octree Traversal} - Revelles et al.
-    \item \texttt{tinyobjloader} - Knihovna pro načítání \texttt{.obj} souborů.
-    \item \texttt{nlohmann/json} - Knihovna pro práci s~JSON v~C++.
-    \item Dokumentace k C++ standardu a knihovnám.
-\end{itemize}
-
+\section{Literature}
+\begin{enumerate}
+    \item Ingo Wald: \textit{On fast Construction of SAH-based Bounding Volume Hierarchies}, 2007.
+    \item OpenMP 4.5 Documentation.
+    \item C++20 Standard library documentation
+    \item NI-MCC and NI-PG1 Lectures.
+\end{enumerate}
 
 \end{document}
