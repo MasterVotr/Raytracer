@@ -24,10 +24,11 @@ Raytracer project from the subjects NI-PG1, NI-GPU and NI-MCC at CTU Prague 2024
 
 ## About
 
-**Author: Jakub Votrubec**  
-**Subject teacher NI-PG1: Ing. Radek Richtr, Ph.D.**
-**Subject teacher NI-GPU: doc. Ing. Ivan Šimeček, Ph.D.**
-**Subject teacher NI-MCC: doc. Ing. Ivan Šimeček, Ph.D.**
+- **Author: Jakub Votrubec**
+
+- **Subject teacher NI-PG1: Ing. Radek Richtr, Ph.D.**
+- **Subject teacher NI-GPU: doc. Ing. Ivan Šimeček, Ph.D.**
+- **Subject teacher NI-MCC: doc. Ing. Ivan Šimeček, Ph.D.**
 
 This project is a raytracer developed as part of NI-PG1, NI-GPU, NI-MCC courses at CTU Prague for the academic year 2024/25. It demonstrates fundamental computer graphics concepts such as ray tracing, shading, and rendering. It also demonstrates the value of acceleration data structures when it comes to optimizing render time. There is also a GPU implementation using CUDA on the **NI-GPU** branch
 
