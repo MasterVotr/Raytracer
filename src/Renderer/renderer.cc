@@ -6,12 +6,12 @@
 
 #include "include/json.hpp"
 #include "renderer.h"
+#include "src/ADS/SBVH/sbvh.h"
 #include "src/ADS/TDBVH/tdbvh.h"
 // #include "src/ADS/BVH/BVHPar/bvh_par.h"
 // #include "src/ADS/BVH/BVHPar2/bvh_par2.h"
 // #include "src/ADS/BVH/BVHPar2V/bvh_par2v.h"
 // #include "src/ADS/BVH/BVHSeq/bvh_seq.h"
-// #include "src/ADS/BVH/BVHSeq2/bvh_seq2.h"
 // #include "src/ADS/BVH/BVHVec/bvh_vec.h"
 // #include "src/ADS/BVH/BVHVec2/bvh_vec2.h"
 #include "src/ADS/DummyAds/dummy_ads.h"
@@ -95,8 +95,8 @@ std::unique_ptr<Ads> Renderer::setup_ads() const {
             return std::make_unique<TDBvh>(config_.at("acceleration_data_structure"));
         // case BVH_SEQ:
         //     return std::make_unique<BvhSeq>(config_.at("acceleration_data_structure"));
-        // case BVH_SEQ2:
-        //     return std::make_unique<BvhSeq2>(config_.at("acceleration_data_structure"));
+        case SBVH:
+            return std::make_unique<SBvh>(config_.at("acceleration_data_structure"));
         // case BVH_VEC:
         //     return std::make_unique<BvhVec>(config_.at("acceleration_data_structure"));
         // case BVH_VEC2:
@@ -403,10 +403,10 @@ void Renderer::config_setup(const nlohmann::json& config) {
         acceleration_data_structure_ = OCTREE_PARAMETRIC;
     } else if (config.at("acceleration_data_structure").at("name") == "tdbvh") {
         acceleration_data_structure_ = TDBVH;
+    } else if (config.at("acceleration_data_structure").at("name") == "sbvh") {
+        acceleration_data_structure_ = SBVH;
         // } else if (config.at("acceleration_data_structure").at("name") == "bvh_seq") {
         //     acceleration_data_structure_ = BVH_SEQ;
-        // } else if (config.at("acceleration_data_structure").at("name") == "bvh_seq2") {
-        //     acceleration_data_structure_ = BVH_SEQ2;
         // } else if (config.at("acceleration_data_structure").at("name") == "bvh_vec") {
         //     acceleration_data_structure_ = BVH_VEC;
         // } else if (config.at("acceleration_data_structure").at("name") == "bvh_vec2") {
