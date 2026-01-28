@@ -22,7 +22,7 @@ class AdsStats {
 
    public:
     // Construction statistics
-    double build_time;                ///< Total build time.
+    double build_time;                ///< Total build time in ms.
     uint32_t node_count;              ///< Node count in BVH (internal + leafs).
     uint32_t degenerate_nodes_count;  ///< Number of leaf more than one prim in them.
     uint32_t inner_node_count;        ///< Inner node count in BVH.
@@ -33,6 +33,7 @@ class AdsStats {
     uint32_t min_prims_per_leaf;      ///< Max number of primitives per leaf.
     uint32_t max_prims_per_leaf;      ///< Max number of primitives per leaf.
     uint32_t total_prims_per_leaf;    ///< Total number of primitives in all leaves.
+    uint32_t memory_consumption;      ///< Tutal memory consumption of the BVH.
 
     // Query statistics
     uint32_t total_query_count;           ///< Count of all queries.
@@ -41,8 +42,7 @@ class AdsStats {
     uint32_t total_incidence_operations;  ///< Number of incidence operations.
     uint32_t min_traversal_steps;         ///< Min number of nodes visited per query.
     uint32_t max_traversal_steps;         ///< Max number of nodes visited per query.
-    uint32_t tatal_traversal_steps;       ///< Number of traversal steps in all queires.
-    uint32_t memory_consumption;          ///< Tutal memory consumption of the BVH.
+    uint32_t total_traversal_steps;       ///< Number of traversal steps in all queires.
 
     /**
      * @brief Constructor initializing all statistics to default values.

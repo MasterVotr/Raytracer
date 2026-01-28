@@ -18,13 +18,14 @@ void AdsStats::Reset() {
     min_prims_per_leaf = std::numeric_limits<uint32_t>::max();
     max_prims_per_leaf = std::numeric_limits<uint32_t>::lowest();
     total_prims_per_leaf = 0;
+    memory_consumption = 0;
+
     min_incidence_operations = std::numeric_limits<uint32_t>::max();
     max_incidence_operations = std::numeric_limits<uint32_t>::lowest();
     total_incidence_operations = 0;
     min_traversal_steps = std::numeric_limits<uint32_t>::max();
     max_traversal_steps = std::numeric_limits<uint32_t>::lowest();
-    tatal_traversal_steps = 0;
-    memory_consumption = 0;
+    total_traversal_steps = 0;
 }
 
 void AdsStats::PrintOnlyConstruction(std::ostream& out) {
@@ -63,7 +64,7 @@ void AdsStats::PrintOnlyQuery(std::ostream& out) {
     out << "# min_traversal_steps = " << min_traversal_steps << '\n';
     out << "# max_traversal_steps = " << max_traversal_steps << '\n';
     const double avgTraversalSteps =
-        (total_query_count > 0) ? static_cast<double>(tatal_traversal_steps) / static_cast<double>(total_query_count)
+        (total_query_count > 0) ? static_cast<double>(total_traversal_steps) / static_cast<double>(total_query_count)
                                 : -1.0;
     out << "# avg_traversal_steps = " << avgTraversalSteps << '\n';
 

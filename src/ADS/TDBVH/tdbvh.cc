@@ -120,6 +120,7 @@ void TDBvh::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles)
 
     stats_.build_time = build_time.elapsed_ms();
     Logger::info("Naive BVH building time: {} ms", stats_.build_time);
+    CalculateStats();
 }
 
 std::vector<std::shared_ptr<const Triangle>> TDBvh::Search(const Ray& r, bool first_hit) const {

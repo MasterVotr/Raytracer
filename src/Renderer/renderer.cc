@@ -6,14 +6,14 @@
 
 #include "include/json.hpp"
 #include "renderer.h"
-#include "src/ADS/BVH/BVHNaive/bvh_naive.h"
-#include "src/ADS/BVH/BVHPar/bvh_par.h"
-#include "src/ADS/BVH/BVHPar2/bvh_par2.h"
-#include "src/ADS/BVH/BVHPar2V/bvh_par2v.h"
-#include "src/ADS/BVH/BVHSeq/bvh_seq.h"
-#include "src/ADS/BVH/BVHSeq2/bvh_seq2.h"
-#include "src/ADS/BVH/BVHVec/bvh_vec.h"
-#include "src/ADS/BVH/BVHVec2/bvh_vec2.h"
+#include "src/ADS/TDBVH/tdbvh.h"
+// #include "src/ADS/BVH/BVHPar/bvh_par.h"
+// #include "src/ADS/BVH/BVHPar2/bvh_par2.h"
+// #include "src/ADS/BVH/BVHPar2V/bvh_par2v.h"
+// #include "src/ADS/BVH/BVHSeq/bvh_seq.h"
+// #include "src/ADS/BVH/BVHSeq2/bvh_seq2.h"
+// #include "src/ADS/BVH/BVHVec/bvh_vec.h"
+// #include "src/ADS/BVH/BVHVec2/bvh_vec2.h"
 #include "src/ADS/DummyAds/dummy_ads.h"
 #include "src/ADS/Octree/OctreeParametric/octree_parametric.h"
 #include "src/ADS/Octree/octree.h"
@@ -91,22 +91,22 @@ std::unique_ptr<Ads> Renderer::setup_ads() const {
             return std::make_unique<Octree>(config_.at("acceleration_data_structure"));
         case OCTREE_PARAMETRIC:
             return std::make_unique<OctreeParametric>(config_.at("acceleration_data_structure"));
-        case BVH_NAIVE:
-            return std::make_unique<BvhNaive>(config_.at("acceleration_data_structure"));
-        case BVH_SEQ:
-            return std::make_unique<BvhSeq>(config_.at("acceleration_data_structure"));
-        case BVH_SEQ2:
-            return std::make_unique<BvhSeq2>(config_.at("acceleration_data_structure"));
-        case BVH_VEC:
-            return std::make_unique<BvhVec>(config_.at("acceleration_data_structure"));
-        case BVH_VEC2:
-            return std::make_unique<BvhVec2>(config_.at("acceleration_data_structure"));
-        case BVH_PAR:
-            return std::make_unique<BvhPar>(config_.at("acceleration_data_structure"));
-        case BVH_PAR2:
-            return std::make_unique<BvhPar2>(config_.at("acceleration_data_structure"));
-        case BVH_PAR2V:
-            return std::make_unique<BvhPar2V>(config_.at("acceleration_data_structure"));
+        case TDBVH:
+            return std::make_unique<TDBvh>(config_.at("acceleration_data_structure"));
+        // case BVH_SEQ:
+        //     return std::make_unique<BvhSeq>(config_.at("acceleration_data_structure"));
+        // case BVH_SEQ2:
+        //     return std::make_unique<BvhSeq2>(config_.at("acceleration_data_structure"));
+        // case BVH_VEC:
+        //     return std::make_unique<BvhVec>(config_.at("acceleration_data_structure"));
+        // case BVH_VEC2:
+        //     return std::make_unique<BvhVec2>(config_.at("acceleration_data_structure"));
+        // case BVH_PAR:
+        //     return std::make_unique<BvhPar>(config_.at("acceleration_data_structure"));
+        // case BVH_PAR2:
+        //     return std::make_unique<BvhPar2>(config_.at("acceleration_data_structure"));
+        // case BVH_PAR2V:
+        //     return std::make_unique<BvhPar2V>(config_.at("acceleration_data_structure"));
         default:
             throw std::runtime_error("Unknown ADS!");
     }
@@ -401,22 +401,22 @@ void Renderer::config_setup(const nlohmann::json& config) {
         acceleration_data_structure_ = OCTREE;
     } else if (config.at("acceleration_data_structure").at("name") == "octee_parametric") {
         acceleration_data_structure_ = OCTREE_PARAMETRIC;
-    } else if (config.at("acceleration_data_structure").at("name") == "bvh_naive") {
-        acceleration_data_structure_ = BVH_NAIVE;
-    } else if (config.at("acceleration_data_structure").at("name") == "bvh_seq") {
-        acceleration_data_structure_ = BVH_SEQ;
-    } else if (config.at("acceleration_data_structure").at("name") == "bvh_seq2") {
-        acceleration_data_structure_ = BVH_SEQ2;
-    } else if (config.at("acceleration_data_structure").at("name") == "bvh_vec") {
-        acceleration_data_structure_ = BVH_VEC;
-    } else if (config.at("acceleration_data_structure").at("name") == "bvh_vec2") {
-        acceleration_data_structure_ = BVH_VEC2;
-    } else if (config.at("acceleration_data_structure").at("name") == "bvh_par") {
-        acceleration_data_structure_ = BVH_PAR;
-    } else if (config.at("acceleration_data_structure").at("name") == "bvh_par2") {
-        acceleration_data_structure_ = BVH_PAR2;
-    } else if (config.at("acceleration_data_structure").at("name") == "bvh_par2v") {
-        acceleration_data_structure_ = BVH_PAR2V;
+    } else if (config.at("acceleration_data_structure").at("name") == "tdbvh") {
+        acceleration_data_structure_ = TDBVH;
+        // } else if (config.at("acceleration_data_structure").at("name") == "bvh_seq") {
+        //     acceleration_data_structure_ = BVH_SEQ;
+        // } else if (config.at("acceleration_data_structure").at("name") == "bvh_seq2") {
+        //     acceleration_data_structure_ = BVH_SEQ2;
+        // } else if (config.at("acceleration_data_structure").at("name") == "bvh_vec") {
+        //     acceleration_data_structure_ = BVH_VEC;
+        // } else if (config.at("acceleration_data_structure").at("name") == "bvh_vec2") {
+        //     acceleration_data_structure_ = BVH_VEC2;
+        // } else if (config.at("acceleration_data_structure").at("name") == "bvh_par") {
+        //     acceleration_data_structure_ = BVH_PAR;
+        // } else if (config.at("acceleration_data_structure").at("name") == "bvh_par2") {
+        //     acceleration_data_structure_ = BVH_PAR2;
+        // } else if (config.at("acceleration_data_structure").at("name") == "bvh_par2v") {
+        //     acceleration_data_structure_ = BVH_PAR2V;
     } else {
         throw std::runtime_error("Invalid data structure");
     }
