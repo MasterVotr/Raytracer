@@ -1,6 +1,5 @@
 #include "src/ADS/TDBVH/tdbvh.h"
 
-#include <chrono>
 #include <iostream>
 #include <limits>
 #include <stack>
@@ -19,7 +18,7 @@ void TDBvh::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles)
     Ads::Build(triangles);
     stats_.Reset();
     Logger::debug("Building naive BVH...");
-    Timer build_time("Build timer");
+    Timer build_t;
 
     if (triangles_.empty()) {
         Logger::error("No triangles to build a BVH.");
@@ -118,8 +117,7 @@ void TDBvh::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles)
         }
     }
 
-    stats_.build_time = build_time.elapsed_ms();
-    Logger::info("Naive BVH building time: {} ms", stats_.build_time);
+    stats_.build_time = build_t.elapsed_ms();
     CalculateStats();
 }
 
@@ -127,7 +125,7 @@ std::vector<std::shared_ptr<const Triangle>> TDBvh::Search(const Ray& r, bool fi
     stats_.total_query_count++;
     uint32_t trav_steps = 0;
     uint32_t inci_ops = 0;
-    auto start_time = std::chrono::high_resolution_clock::now();
+
     std::vector<std::shared_ptr<const Triangle>> result;
     result.reserve(max_triangles_per_BB_);
 
@@ -160,8 +158,6 @@ std::vector<std::shared_ptr<const Triangle>> TDBvh::Search(const Ray& r, bool fi
         }
     }
 
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count();
     stats_.min_traversal_steps = std::min(stats_.min_traversal_steps, trav_steps);
     stats_.max_traversal_steps = std::max(stats_.max_traversal_steps, trav_steps);
     stats_.total_traversal_steps += trav_steps;
@@ -179,7 +175,7 @@ void TDBvh::PrintStats(std::ostream& os) const {
 
 void TDBvh::CalculateStats() const {
     std::stack<std::shared_ptr<BvhNode>> s;
-    s.push(root_);
+    s.emplace(root_);
 
     while (!s.empty()) {
         std::shared_ptr<BvhNode> curr_node = s.top();
@@ -190,7 +186,7 @@ void TDBvh::CalculateStats() const {
         if (curr_node->isLeaf) {
             stats_.leaf_node_count++;
 
-            stats_.min_leaf_depth = std::min(stats_.max_leaf_depth, static_cast<uint32_t>(curr_node->depth));
+            stats_.min_leaf_depth = std::min(stats_.min_leaf_depth, static_cast<uint32_t>(curr_node->depth));
             stats_.max_leaf_depth = std::max(stats_.max_leaf_depth, static_cast<uint32_t>(curr_node->depth));
             stats_.total_leaf_depth += curr_node->depth;
 
@@ -202,6 +198,8 @@ void TDBvh::CalculateStats() const {
 
             continue;
         }
+
+        stats_.inner_node_count++;
 
         // Add non empty children to the stack to be processed
         if (curr_node->left) {

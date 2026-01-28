@@ -30,7 +30,7 @@ void AdsStats::Reset() {
 
 void AdsStats::PrintOnlyConstruction(std::ostream& out) {
     out << "Construction statistics:\n";
-    out << "# build_time = " << static_cast<int>(build_time * 1000) << "\n";
+    out << "# build_time = " << build_time << "\n";
 
     out << "# node_count = " << node_count << "\n";
     out << "# degenerate_node_count = " << degenerate_nodes_count << "\n";
