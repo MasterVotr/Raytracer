@@ -8,6 +8,8 @@
 #include "src/ADS/TDBVH/tdbvh.h"
 #include "src/aabb.h"
 #include "src/collision_detection.h"
+#include "src/logger.h"
+#include "src/timer.h"
 
 namespace raytracer {
 
@@ -16,11 +18,11 @@ TDBvh::TDBvh(const nlohmann::json& config) : Ads(config) { ConfigSetup(config); 
 void TDBvh::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles) {
     Ads::Build(triangles);
     stats_.Reset();
-    std::clog << "Building naive BVH..." << std::flush;
-    auto start_time = std::chrono::high_resolution_clock::now();
+    Logger::debug("Building naive BVH...");
+    Timer build_time("Build timer");
 
     if (triangles_.empty()) {
-        std::cerr << "No triangles to build a BVH." << std::endl;
+        Logger::error("No triangles to build a BVH.");
         return;
     }
 
@@ -100,7 +102,6 @@ void TDBvh::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles)
             curr_node->isLeaf = true;
             curr_node->left.reset();
             curr_node->right.reset();
-            // std::cerr << "Bad split of a BVH node, (atleast) one node is empty!" << std::endl;
             continue;
         }
 
@@ -117,11 +118,8 @@ void TDBvh::Build(const std::vector<std::shared_ptr<const Triangle>>& triangles)
         }
     }
 
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
-    stats_.build_time = duration / 1'000;
-    std::clog << "\rNaive BVH building time: " << duration / 1000.0 << " ms" << std::endl;
-    CalculateStats();
+    stats_.build_time = build_time.elapsed_ms();
+    Logger::info("Naive BVH building time: {} ms", stats_.build_time);
 }
 
 std::vector<std::shared_ptr<const Triangle>> TDBvh::Search(const Ray& r, bool first_hit) const {
@@ -129,7 +127,6 @@ std::vector<std::shared_ptr<const Triangle>> TDBvh::Search(const Ray& r, bool fi
     uint32_t trav_steps = 0;
     uint32_t inci_ops = 0;
     auto start_time = std::chrono::high_resolution_clock::now();
-
     std::vector<std::shared_ptr<const Triangle>> result;
     result.reserve(max_triangles_per_BB_);
 
@@ -164,9 +161,6 @@ std::vector<std::shared_ptr<const Triangle>> TDBvh::Search(const Ray& r, bool fi
 
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_time - start_time).count();
-    // search_time_ += duration;
-    // search_min_time_ = std::min(search_min_time_, duration);
-    // search_max_time_ = std::max(search_max_time_, duration);
     stats_.min_traversal_steps = std::min(stats_.min_traversal_steps, trav_steps);
     stats_.max_traversal_steps = std::max(stats_.max_traversal_steps, trav_steps);
     stats_.total_traversal_steps += trav_steps;
@@ -219,12 +213,10 @@ void TDBvh::CalculateStats() const {
 }
 
 void TDBvh::ConfigSetup(const nlohmann::json& config) {
-    std::clog << "Configuring naive BVH..." << std::flush;
-
     max_triangles_per_BB_ = config.at("max_triangles_per_BB");
     max_depth_ = config.at("max_depth");
 
-    std::clog << "\rNaive BVH configured     " << std::endl;
+    Logger::debug("Top down BVH configured");
 }
 
 }  // namespace raytracer
