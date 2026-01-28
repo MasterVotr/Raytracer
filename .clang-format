@@ -1,0 +1,11 @@
+BasedOnStyle: Google
+Language: Cpp
+
+# Indentation and whitespace
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# Keep line length and comments
+ColumnLimit: 120
+ReflowComments: false
