@@ -8,7 +8,7 @@
 
 namespace raytracer {
 
-// Bounding volume hierarchy acceleration data structure - naive implementation
+// Bounding volume hierarchy acceleration data structure - SAH bining
 class SBvh : public Ads {
    public:
     SBvh(const nlohmann::json& config);
