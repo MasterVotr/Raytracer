@@ -35,6 +35,9 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
     img.reserve(scene.GetCamera().width * scene.GetCamera().height * 3);
     ray_trinagle_collision_count_ = 0;
     ray_trinagle_collision_duration_ = 0;
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_real_distribution<float> dis(0.0f, 0.001f);
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -49,18 +52,12 @@ std::vector<float> Renderer::RenderScene(const Scene& scene) const {
 
         Color pixel_color = ray_color(scene, ads, rays[r]);
         for (int i = 0; i < scene.GetCamera().samples_per_pixel - 1; i++) {
-            float x_jitter = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 0.001f;
-            float y_jitter = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 0.001f;
+            float x_jitter = dis(gen);
+            float y_jitter = dis(gen);
             Ray jitter_ray(rays[r].origin(), rays[r].direction() + Vec3(x_jitter, y_jitter, 0.0f));
             pixel_color += ray_color(scene, ads, jitter_ray);
         }
         pixel_color = pixel_color / (scene.GetCamera().samples_per_pixel);
-        // Gamma correction
-        pixel_color.x /= pixel_color.x + 1.0f;
-        pixel_color.y /= pixel_color.y + 1.0f;
-        pixel_color.z /= pixel_color.z + 1.0f;
-        pixel_color =
-            Color(pow(pixel_color.x, 1.0 / 2.2), pow(pixel_color.y, 1.0 / 2.2), pow(pixel_color.z, 1.0 / 2.2));
         pixel_color = clamp_color(pixel_color);
         img.emplace_back(pixel_color.x);
         img.emplace_back(pixel_color.y);
@@ -113,20 +110,19 @@ std::unique_ptr<Ads> Renderer::setup_ads() const {
 }
 
 std::vector<Ray> Renderer::generate_rays(const Scene& scene) const {
-    int width = scene.GetCamera().width;
-    int height = scene.GetCamera().height;
-    Vec3 camera_pos = scene.GetCamera().pos;
+    float width = scene.GetCamera().width;
+    float height = scene.GetCamera().height;
+    Vec3 origin = scene.GetCamera().pos;
     Vec3 camera_dir = scene.GetCamera().dir;
     Vec3 camera_up = scene.GetCamera().up;
     float camera_fov = scene.GetCamera().fov;
 
-    float t = 1.0f;
-    Vec3 b = cross(camera_dir, camera_up);
-    float gw = 2 * t * std::tan(camera_fov / 2.0f);
+    Vec3 b = cross(camera_dir, camera_up).normalize();
+    float gw = 2.0 * std::tan(camera_fov / 2.0f);
     float gh = gw * (height / width);
     Vec3 qw = b * (gw / (width - 1));
-    Vec3 qh = camera_up * (gh / (height - 1));
-    Vec3 p00 = camera_dir * t - (b * (gw / 2)) + (camera_up * (gh / 2));
+    Vec3 qh = -camera_up * (gh / (height - 1));
+    Vec3 p00 = camera_dir - (b * (gw / 2)) + (camera_up * (gh / 2));
 
     std::vector<Ray> rays;
     rays.reserve(width * height);
@@ -134,9 +130,8 @@ std::vector<Ray> Renderer::generate_rays(const Scene& scene) const {
     for (int y = 0; y < height; y++) {
         std::clog << "\rCreating rays... " << (y * 1.0 / height) * 100.0 << "%" << std::flush;
         for (int x = 0; x < width; x++) {
-            Vec3 pxy = p00 + (qw * x) - (qh * y);
-            Vec3 rxy = pxy / pxy.length();
-            rays.emplace_back(camera_pos, rxy);
+            Vec3 dir = (p00 + (qw * x) + (qh * y)).normalize();
+            rays.emplace_back(origin, dir);
         }
     }
     std::clog << "\rCreating rays done               " << std::endl;
@@ -321,12 +316,8 @@ bool Renderer::is_shadowed(const std::unique_ptr<Ads>& ads, const Point3& ray_in
 
     auto start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < triangles.size(); i++) {
-        // Do not test for intersection with the triangle we hit
-        if (triangles[i].get() == hit_triangle) {
-            continue;
-        }
         shadow_t = collision_ray_triangle(shadow_ray, *triangles[i], cull_backfaces_);
-        if (shadow_t > epsilon && shadow_t < dist_light) {
+        if (shadow_t > dist_light * epsilon && shadow_t <= dist_light * (1 - epsilon)) {
             auto end = std::chrono::high_resolution_clock::now();
             ray_trinagle_collision_duration_ +=
                 std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
