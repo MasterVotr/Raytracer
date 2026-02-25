@@ -3,4 +3,6 @@ pos 278 273 -1000
 up 0 1 0 
 dir 0 0 1
 fov 0.6
-max_distance = 2000.0
+max_distance 2000.0
+light_pos 275 490 275
+light_col 1.0, 1.0, 1.0

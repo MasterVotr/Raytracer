@@ -3,6 +3,7 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <random>
 
 #include "include/json.hpp"
 #include "renderer.h"
@@ -231,6 +232,8 @@ Color Renderer::render_local_ilumination(const Scene& scene, const std::unique_p
                                          const Material& material, const Point3& intersection_point,
                                          const Vec3& intersection_point_normal) const {
     Color final_color(0.0);
+
+    // Area lights
     for (size_t l = 0; l < scene.GetLights().size(); l++) {
         const auto& light = scene.GetLights()[l];
         const auto& light_material = scene.GetMaterials()[light->material_id];
@@ -249,25 +252,22 @@ Color Renderer::render_local_ilumination(const Scene& scene, const std::unique_p
                 auto d = (p_l - intersection_point).length();
                 auto w = (S_l * std::max(0.0f, dot(n_l, (-d_l)))) / (s * d * d + epsilon);
                 auto I_l = light_material.emission * w;
-                switch (render_type_) {
-                    case PHONG: {
-                        accumulated_color += render_phong(scene.GetCamera(), material, intersection_point,
-                                                          intersection_point_normal, p_l, I_l);
-                        break;
-                    }
-                    case BLINN_PHONG: {
-                        accumulated_color += render_blinn_phong(scene.GetCamera(), material, intersection_point,
-                                                                intersection_point_normal, p_l, I_l);
-                        break;
-                    }
-                    default: {
-                        std::cerr << "Invalid local ilumination render type" << std::endl;
-                        exit(1);
-                    }
-                }
+                final_color +=
+                    render_phong(scene.GetCamera(), material, intersection_point, intersection_point_normal, p_l, I_l);
             }
         }
-        final_color += accumulated_color;
+    }
+    
+    // Point lights
+    for (const auto& point_light : scene.GetPointLights()) {
+        bool shadowed = is_shadowed(ads, intersection_point, point_light.pos, &triangle);
+        if (shadowed) {
+            continue;
+        }
+        float d = (point_light.pos - intersection_point).length();
+        Vec3 I_l = point_light.color / (d * d + epsilon);
+        final_color += render_phong(scene.GetCamera(), material, intersection_point, intersection_point_normal,
+                                    point_light.pos, point_light.color);
     }
 
     return final_color;
@@ -335,23 +335,31 @@ Ray Renderer::calculate_reflection_ray(const Ray& r, const Point3& ray_intersect
     Vec3 d_v = -r.direction();
     auto& d_n = normal;
     auto d_r = d_n * 2.0 * dot(d_n, d_v) - d_v;
-    Ray reflection_ray = Ray(ray_intersection_point, d_r.normalize());
+    Ray reflection_ray = Ray(ray_intersection_point + normal * epsilon, d_r.normalize());
     return reflection_ray;
 }
 
 Ray Renderer::calculate_refraction_ray(const Ray& r, const Point3& ray_intersection_point, const Vec3& normal,
                                        float ior) const {
-    Vec3 d_v = -r.direction();  // Inverted direction
-    auto& d_n = normal;
-    float n1 = 1.0;  // Air
-    float n2 = ior;
-    float n = n1 / n2;
-    float ndotv = dot(d_n, d_v);
-    auto t = d_v * -n + d_n * (n * ndotv - sqrt(1 - n * n * (1 - ndotv * ndotv)));
-    if (t.length() > epsilon) {
-        return Ray(ray_intersection_point, t.normalize());
+    float d_dot_n = dot(r.direction(), normal);
+    Vec3 N = normal;
+    if (d_dot_n < 0.0) {
+        // from outside to inside of object
+        ior = 1.0 / ior;
+    } else {
+        // from inside to outside of object
+        d_dot_n = -d_dot_n;
+        N = -normal;
     }
-    return Ray(ray_intersection_point, Vec3(0.0f));
+    float sqrt_term = 1.0 - ior * ior * (1.0 - d_dot_n * d_dot_n);
+
+    // Check for total internal reflection
+    if (sqrt_term >= 0.0) {
+        Vec3 refraction_dir = r.direction() * ior + N * (ior * -d_dot_n - std::sqrt(sqrt_term));
+        return Ray(ray_intersection_point - N * epsilon, refraction_dir);
+    }
+    // Refraction turns into reflection
+    return calculate_reflection_ray(r, ray_intersection_point, normal);
 }
 
 void Renderer::config_setup(const nlohmann::json& config) {

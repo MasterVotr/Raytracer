@@ -14,6 +14,11 @@ namespace raytracer {
 
 class Scene {
    public:
+    struct PointLight {
+        Point3 pos;
+        Color color;
+    };
+
     Scene(const nlohmann::json& config) : config_(config) { config_setup(config); }
 
     inline void AddTriangle(std::shared_ptr<const Triangle> t) { triangles_.emplace_back(t); }
@@ -22,15 +27,11 @@ class Scene {
     inline const std::vector<std::shared_ptr<const Triangle>>& GetTriangles() const { return triangles_; }
     inline const std::vector<Material>& GetMaterials() const { return materials_; }
     inline const std::vector<std::shared_ptr<const Triangle>>& GetLights() const { return lights_; }
+    inline const std::vector<PointLight>& GetPointLights() const { return point_lights_; }
     inline void SetCamera(const Camera& camera) { camera_ = camera; }
     inline const Camera& GetCamera() const { return camera_; }
 
    private:
-    struct PointLight {
-        Point3 pos;
-        Color color;
-    };
-
     void config_setup(const nlohmann::json& config) {
         // Load Camera config
         camera_ = Camera(config.at("camera"));
