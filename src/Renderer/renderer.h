@@ -18,7 +18,7 @@ namespace raytracer {
 
 class Renderer {
    public:
-    enum RENDER_TYPE { DISTANCE, DIFFUSION, PHONG, BLINN_PHONG };
+    enum RENDER_TYPE { DISTANCE, DIFFUSION, PHONG };
     enum SHADING_TYPE { FLAT, SMOOTH };
     enum ACCELERATION_DATA_STRUCTURE {
         NONE,
@@ -48,9 +48,6 @@ class Renderer {
                                    const Vec3& intersection_point_normal) const;
     Color render_phong(const Camera& camera, const Material& material, const Point3& intersection_point,
                        const Vec3& intersection_point_normal, const Point3& light_pos, const Color& I_l = 1.0) const;
-    Color render_blinn_phong(const Camera& camera, const Material& material, const Point3& intersection_point,
-                             const Vec3& intersection_point_normal, const Point3& light_pos,
-                             const Color& I_l = 1.0) const;
     Ray calculate_reflection_ray(const Ray& r, const Point3& ray_intersection_point, const Vec3& normal) const;
     Ray calculate_refraction_ray(const Ray& r, const Point3& ray_intersection_point, const Vec3& normal,
                                  float ior) const;

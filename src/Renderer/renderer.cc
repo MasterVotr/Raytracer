@@ -186,8 +186,7 @@ Color Renderer::ray_color(const Scene& scene, const std::unique_ptr<Ads>& ads, R
             final_color += material.diffuse;
             break;
         }
-        case PHONG:
-        case BLINN_PHONG: {
+        case PHONG: {
             final_color += render_local_ilumination(scene, ads, *triangle, material, ray_intersection_point, normal);
             break;
         }
@@ -241,7 +240,6 @@ Color Renderer::render_local_ilumination(const Scene& scene, const std::unique_p
             return light_material.emission;  // Early exit if the triangle is a light source
         }
         auto S_l = calculate_triangle_area(*light);
-        Color accumulated_color(0.0);
         for (int s = 0; s < samples_per_triangle_; s++) {
             auto p_l = rand_point_on_triangle(*light);
             bool shadowed = is_shadowed(ads, intersection_point, p_l, &triangle);
@@ -257,7 +255,7 @@ Color Renderer::render_local_ilumination(const Scene& scene, const std::unique_p
             }
         }
     }
-    
+
     // Point lights
     for (const auto& point_light : scene.GetPointLights()) {
         bool shadowed = is_shadowed(ads, intersection_point, point_light.pos, &triangle);
@@ -287,23 +285,6 @@ Color Renderer::render_phong(const Camera& camera, const Material& material, con
     auto I_e = material.emission;
 
     return I_a + I_d + I_s + I_e;
-}
-
-Color Renderer::render_blinn_phong(const Camera& camera, const Material& material, const Point3& intersection_point,
-                                   const Vec3& intersection_point_normal, const Point3& light_pos,
-                                   const Color& I_l) const {
-    // Compute the light direction, view direction, and halfway vector
-    auto d_l = (light_pos - intersection_point).normalize();
-    auto d_v = (camera.pos - intersection_point).normalize();
-    auto d_h = (d_l + d_v).normalize();  // Halfway vector for Blinn-Phong
-
-    // Compute ambient, diffuse, specular, reflection, and refraction components
-    auto I_a = I_l * Color(0.0f);  // Useless ambient color
-    auto I_d = I_l * material.diffuse * std::max(0.0f, dot(intersection_point_normal, d_l));
-    auto I_s =
-        I_l * material.specular * std::pow(std::max(0.0f, dot(intersection_point_normal, d_h)), material.shininess);
-
-    return I_a + I_d + I_s;
 }
 
 bool Renderer::is_shadowed(const std::unique_ptr<Ads>& ads, const Point3& ray_intersection_point, const Vec3& light_pos,
@@ -378,8 +359,6 @@ void Renderer::config_setup(const nlohmann::json& config) {
         render_type_ = DIFFUSION;
     } else if (config.at("render_type") == "phong") {
         render_type_ = PHONG;
-    } else if (config.at("render_type") == "blinn_phong") {
-        render_type_ = BLINN_PHONG;
     } else {
         throw std::runtime_error("Invalid render type");
     }
